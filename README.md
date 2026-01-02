@@ -42,7 +42,7 @@ Designed to be “installed” on a phone via Add to Home Screen.
 
 ## Related project (Raspberry Pi uploader)
 🌡️ Pi sensor uploader repo:  
-- https://github.com/<YOUR_GITHUB_USERNAME>/pi-temperature-monitor
+- https://github.com/muasvoos/pi-temperature-monitor
 
 ## Architecture
 Raspberry Pi (DS18B20) → Supabase `temperature_readings` → PWA (Realtime)
