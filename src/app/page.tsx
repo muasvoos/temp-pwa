@@ -13,11 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.1.1"; // Application version
-
-// If your Pi uploads every 10s, 35–45s is a good offline threshold.
-const UPLOAD_INTERVAL_SEC = 10;              // <-- set to match your Pi script
-const OFFLINE_AFTER_SEC = UPLOAD_INTERVAL_SEC * 4; // 40s default
+const APP_VERSION = "1.2.0"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -53,6 +49,24 @@ export default function Home() {
   const [emailAddress, setEmailAddress] = useState<string>("");
   const [autoEmailEnabled, setAutoEmailEnabled] = useState<boolean>(false);
   const [emailSending, setEmailSending] = useState<boolean>(false);
+  const [samplingInterval, setSamplingInterval] = useState<number>(30);
+  const [samplingIntervalUnit, setSamplingIntervalUnit] = useState<"seconds" | "minutes" | "hours">("seconds");
+
+  // Hardcoded upload interval (Pi's actual upload rate)
+  const uploadIntervalInSeconds = 10;
+  const offlineThreshold = uploadIntervalInSeconds * 4; // 40 seconds
+
+  // Calculate sampling interval in seconds
+  const samplingIntervalInSeconds = useMemo(() => {
+    switch (samplingIntervalUnit) {
+      case "minutes":
+        return samplingInterval * 60;
+      case "hours":
+        return samplingInterval * 3600;
+      default:
+        return samplingInterval;
+    }
+  }, [samplingInterval, samplingIntervalUnit]);
 
   // --- Refs to track current values in callbacks ---
   const isTrackingRef = useRef(isTracking);
@@ -84,7 +98,7 @@ export default function Home() {
     );
   }, [latestBySensor]);
 
-  const isOffline = ageSec !== null && ageSec > OFFLINE_AFTER_SEC;
+  const isOffline = ageSec !== null && ageSec > offlineThreshold;
 
   const rows = useMemo(() => {
     return Object.values(latestBySensor).sort((a, b) =>
@@ -280,6 +294,55 @@ export default function Home() {
       (a, b) => new Date(a.ts_utc).getTime() - new Date(b.ts_utc).getTime()
     );
 
+    // Apply sampling interval filter - keep readings closest to each interval boundary
+    const samplingIntervalMs = samplingIntervalInSeconds * 1000;
+    const startTimeMs = new Date(trackingStartTime).getTime();
+    const endTimeMs = new Date(trackingEndTime).getTime();
+
+    // Group readings by sensor first
+    const readingsBySensor: Record<string, Reading[]> = {};
+    sortedReadings.forEach((reading) => {
+      if (!readingsBySensor[reading.sensor_name]) {
+        readingsBySensor[reading.sensor_name] = [];
+      }
+      readingsBySensor[reading.sensor_name].push(reading);
+    });
+
+    // Sample each sensor separately
+    const sampledReadings: Reading[] = [];
+    Object.values(readingsBySensor).forEach((sensorReadings) => {
+      // Calculate expected sample times
+      let currentSampleTime = startTimeMs;
+
+      while (currentSampleTime <= endTimeMs) {
+        // Find the reading closest to this sample time
+        let closestReading: Reading | null = null;
+        let closestDiff = Infinity;
+
+        sensorReadings.forEach((reading) => {
+          const readingTime = new Date(reading.ts_utc).getTime();
+          const diff = Math.abs(readingTime - currentSampleTime);
+
+          if (diff < closestDiff && diff < samplingIntervalMs) {
+            closestDiff = diff;
+            closestReading = reading;
+          }
+        });
+
+        if (closestReading && !sampledReadings.includes(closestReading)) {
+          sampledReadings.push(closestReading);
+        }
+
+        currentSampleTime += samplingIntervalMs;
+      }
+    });
+
+    // Sort sampled readings by timestamp
+    sampledReadings.sort((a, b) => new Date(a.ts_utc).getTime() - new Date(b.ts_utc).getTime());
+
+    // Use sampled readings for the report
+    const reportReadings = sampledReadings.length > 0 ? sampledReadings : sortedReadings;
+
     // Group by sensor for summary stats
     const stats: Record<string, { min: number; max: number; avg: number; count: number }> = {};
     sortedReadings.forEach((r) => {
@@ -296,9 +359,9 @@ export default function Home() {
       stats[sensor].avg = stats[sensor].avg / stats[sensor].count;
     });
 
-    // Separate readings by sensor
-    const ambientReadings = sortedReadings.filter(r => r.sensor_name === 'ambient_room');
-    const probeReadings = sortedReadings.filter(r => r.sensor_name === 'probe_target');
+    // Separate readings by sensor (use sampled data for charts/tables)
+    const ambientReadings = reportReadings.filter(r => r.sensor_name === 'ambient_room');
+    const probeReadings = reportReadings.filter(r => r.sensor_name === 'probe_target');
 
     // Prepare chart data for ambient_room
     const ambientLabels = ambientReadings.map(r => formatChicago(r.ts_utc));
@@ -522,7 +585,9 @@ export default function Home() {
       <p><strong>Device:</strong> ${DEVICE_ID}</p>
       <p><strong>Time Range:</strong> ${formatChicago(trackingStartTime)} - ${formatChicago(trackingEndTime)}</p>
       <p><strong>Time Zone:</strong> ${TIME_ZONE}</p>
-      <p><strong>Total Readings:</strong> ${sortedReadings.length}</p>
+      <p><strong>Total Readings Collected:</strong> ${sortedReadings.length}</p>
+      <p><strong>Sampled Readings in Report:</strong> ${reportReadings.length}</p>
+      <p><strong>Sampling Interval:</strong> ${samplingInterval} ${samplingIntervalUnit} (${samplingIntervalInSeconds}s)</p>
       <p><strong>Generated:</strong> ${new Date().toLocaleString('en-US', { timeZone: TIME_ZONE })}</p>
       <p><strong>Report Version:</strong> ${APP_VERSION}</p>
     </div>
@@ -882,11 +947,11 @@ useEffect(() => {
   window.addEventListener("focus", handleResume);
   window.addEventListener("online", handleResume);
 
-  // Polling fallback (every 5 seconds)
+  // Polling fallback
   // This ensures temps still update even if realtime drops silently.
   pollTimer = setInterval(() => {
     if (document.visibilityState === "visible") refresh();
-  }, UPLOAD_INTERVAL_SEC * 1000);
+  }, uploadIntervalInSeconds * 1000);
 
   // Cleanup
   return () => {
@@ -1074,6 +1139,48 @@ return (
             </div>
           </div>
         )}
+
+        {/* Sampling Interval Configuration */}
+        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+          <label style={{ fontSize: 13, opacity: 0.75, display: "block", marginBottom: 4 }}>
+            Report Sampling Interval (filter readings to include in reports)
+          </label>
+          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <input
+              type="number"
+              min="1"
+              value={samplingInterval}
+              onChange={(e) => setSamplingInterval(Math.max(1, parseInt(e.target.value) || 1))}
+              disabled={isTracking}
+              style={{
+                width: 80,
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.2)",
+                fontSize: 14,
+              }}
+            />
+            <select
+              value={samplingIntervalUnit}
+              onChange={(e) => setSamplingIntervalUnit(e.target.value as "seconds" | "minutes" | "hours")}
+              disabled={isTracking}
+              style={{
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.2)",
+                fontSize: 14,
+                cursor: "pointer",
+              }}
+            >
+              <option value="seconds">Seconds</option>
+              <option value="minutes">Minutes</option>
+              <option value="hours">Hours</option>
+            </select>
+            <span style={{ fontSize: 12, opacity: 0.5 }}>
+              (Sample every {samplingIntervalInSeconds}s)
+            </span>
+          </div>
+        </div>
 
         {/* Email Configuration */}
         <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
