@@ -14,6 +14,10 @@ type Reading = {
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
 
+// If your Pi uploads every 10s, 35–45s is a good offline threshold.
+const UPLOAD_INTERVAL_SEC = 10;              // <-- set to match your Pi script
+const OFFLINE_AFTER_SEC = UPLOAD_INTERVAL_SEC * 4; // 40s default
+
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
   return new Intl.DateTimeFormat("en-US", {
@@ -33,6 +37,20 @@ export default function Home() {
     {}
   );
   const [status, setStatus] = useState<string>("Connecting…");
+
+    // --- Offline / staleness tracking ---
+  const [ageSec, setAgeSec] = useState<number | null>(null);
+
+  const lastTsUtc = useMemo(() => {
+    const all = Object.values(latestBySensor);
+    if (all.length === 0) return null;
+    return all.reduce((max, r) =>
+      new Date(r.ts_utc) > new Date(max) ? r.ts_utc : max,
+      all[0].ts_utc
+    );
+  }, [latestBySensor]);
+
+  const isOffline = ageSec !== null && ageSec > OFFLINE_AFTER_SEC;
 
   const rows = useMemo(() => {
     return Object.values(latestBySensor).sort((a, b) =>
@@ -118,7 +136,7 @@ useEffect(() => {
   // This ensures temps still update even if realtime drops silently.
   pollTimer = setInterval(() => {
     if (document.visibilityState === "visible") refresh();
-  }, 5000);
+  }, UPLOAD_INTERVAL_SEC * 1000);
 
   // Cleanup
   return () => {
@@ -132,40 +150,104 @@ useEffect(() => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
 }, []);
 
-  return (
-    <main style={{ padding: 16, maxWidth: 720, margin: "0 auto", fontFamily: "system-ui" }}>
-      <h1 style={{ fontSize: 28, marginBottom: 4 }}>Live Temperatures</h1>
-      <div style={{ opacity: 0.75, marginBottom: 16 }}>
-        Device: <b>{DEVICE_ID}</b> • Time zone: <b>{TIME_ZONE}</b> • Status: <b>{status}</b>
-      </div>
+// --- Update "last seen" age every second ---
+useEffect(() => {
+  const t = setInterval(() => {
+    if (!lastTsUtc) {
+      setAgeSec(null);
+      return;
+    }
 
-      {rows.length === 0 ? (
-        <p style={{ opacity: 0.7 }}>No data yet. Make sure your Pi uploader is running.</p>
-      ) : (
-        <div style={{ display: "grid", gap: 12 }}>
-          {rows.map((r) => (
-            <div
-              key={r.sensor_name}
-              style={{
-                border: "1px solid rgba(0,0,0,0.15)",
-                borderRadius: 16,
-                padding: 16,
-              }}
-            >
-              <div style={{ fontSize: 18, fontWeight: 700 }}>{r.sensor_name}</div>
-              <div style={{ fontSize: 42, fontWeight: 800, marginTop: 6 }}>
-                {Number(r.temp_c).toFixed(2)} °C
-              </div>
-              <div style={{ marginTop: 8, opacity: 0.75, fontSize: 14 }}>
-                Updated: <b>{formatChicago(r.ts_utc)}</b>
-              </div>
-              <div style={{ marginTop: 4, opacity: 0.6, fontSize: 12 }}>
-                sensor_id: {r.sensor_id}
-              </div>
+    const sec = Math.floor(
+      (Date.now() - new Date(lastTsUtc).getTime()) / 1000
+    );
+    setAgeSec(sec);
+  }, 1000);
+
+  return () => clearInterval(t);
+}, [lastTsUtc]);
+
+return (
+  <main
+    style={{
+      padding: 16,
+      maxWidth: 720,
+      margin: "0 auto",
+      fontFamily: "system-ui",
+    }}
+  >
+    <h1 style={{ fontSize: 28, marginBottom: 4 }}>Live Temperatures</h1>
+
+    <div style={{ opacity: 0.75, marginBottom: 12 }}>
+      Device: <b>{DEVICE_ID}</b> • Time zone: <b>{TIME_ZONE}</b> • Status:{" "}
+      <b>{status}</b>
+    </div>
+
+    {/* 🔽 ADDED: Offline / Live indicator banner */}
+    {ageSec !== null && (
+      <div
+        style={{
+          padding: 12,
+          borderRadius: 12,
+          border: "1px solid rgba(0,0,0,0.2)",
+          marginBottom: 16,
+        }}
+      >
+        {isOffline ? (
+          <>
+            ⚠️ <b>Device appears offline.</b> No new readings for{" "}
+            <b>{ageSec}s</b>.
+          </>
+        ) : (
+          <>
+            ✅ <b>Receiving updates.</b> Last update{" "}
+            <b>{ageSec}s</b> ago.
+          </>
+        )}
+
+        {lastTsUtc && (
+          <div style={{ marginTop: 6, opacity: 0.75, fontSize: 13 }}>
+            Last reading: <b>{formatChicago(lastTsUtc)}</b>
+          </div>
+        )}
+      </div>
+    )}
+    {/* 🔼 END added section */}
+
+    {rows.length === 0 ? (
+      <p style={{ opacity: 0.7 }}>
+        No data yet. Make sure your Pi uploader is running.
+      </p>
+    ) : (
+      <div style={{ display: "grid", gap: 12 }}>
+        {rows.map((r) => (
+          <div
+            key={r.sensor_name}
+            style={{
+              border: "1px solid rgba(0,0,0,0.15)",
+              borderRadius: 16,
+              padding: 16,
+            }}
+          >
+            <div style={{ fontSize: 18, fontWeight: 700 }}>
+              {r.sensor_name}
             </div>
-          ))}
-        </div>
-      )}
-    </main>
-  );
+
+            <div style={{ fontSize: 42, fontWeight: 800, marginTop: 6 }}>
+              {Number(r.temp_c).toFixed(2)} °C
+            </div>
+
+            <div style={{ marginTop: 8, opacity: 0.75, fontSize: 14 }}>
+              Updated: <b>{formatChicago(r.ts_utc)}</b>
+            </div>
+
+            <div style={{ marginTop: 4, opacity: 0.6, fontSize: 12 }}>
+              sensor_id: {r.sensor_id}
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </main>
+);
 }
