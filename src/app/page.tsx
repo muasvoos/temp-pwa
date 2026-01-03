@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.1.0"; // Application version
+const APP_VERSION = "1.1.1"; // Application version
 
 // If your Pi uploads every 10s, 35–45s is a good offline threshold.
 const UPLOAD_INTERVAL_SEC = 10;              // <-- set to match your Pi script
