@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.0.0"; // Application version
+const APP_VERSION = "1.1.0"; // Application version
 
 // If your Pi uploads every 10s, 35–45s is a good offline threshold.
 const UPLOAD_INTERVAL_SEC = 10;              // <-- set to match your Pi script
@@ -50,6 +50,9 @@ export default function Home() {
   const [trackingStartTime, setTrackingStartTime] = useState<string>("");
   const [trackingEndTime, setTrackingEndTime] = useState<string>("");
   const [lastSaveTime, setLastSaveTime] = useState<string>("");
+  const [emailAddress, setEmailAddress] = useState<string>("");
+  const [autoEmailEnabled, setAutoEmailEnabled] = useState<boolean>(false);
+  const [emailSending, setEmailSending] = useState<boolean>(false);
 
   // --- Refs to track current values in callbacks ---
   const isTrackingRef = useRef(isTracking);
@@ -200,8 +203,65 @@ export default function Home() {
     }
   }
 
+  // Generate summary text for email
+  function generateSummary(stats: Record<string, { min: number; max: number; avg: number; count: number }>) {
+    let summary = "Temperature Readings Summary:\n\n";
+
+    Object.entries(stats).sort(([a], [b]) => a.localeCompare(b)).forEach(([sensor, data]) => {
+      summary += `${sensor}:\n`;
+      summary += `  Total Readings: ${data.count}\n`;
+      summary += `  Min: ${data.min.toFixed(2)} °C\n`;
+      summary += `  Max: ${data.max.toFixed(2)} °C\n`;
+      summary += `  Avg: ${data.avg.toFixed(2)} °C\n\n`;
+    });
+
+    return summary;
+  }
+
+  // Send email with HTML report
+  async function sendEmailReport(htmlContent: string, stats: Record<string, { min: number; max: number; avg: number; count: number }>) {
+    if (!emailAddress || !emailAddress.includes('@')) {
+      alert("Please enter a valid email address");
+      return;
+    }
+
+    setEmailSending(true);
+
+    try {
+      const summary = generateSummary(stats);
+      const timeRange = `${formatChicago(trackingStartTime)} - ${formatChicago(trackingEndTime)}`;
+
+      const response = await fetch('/api/send-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: emailAddress,
+          htmlContent,
+          summary,
+          timeRange,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(`Email sent successfully to ${emailAddress}!`);
+      } else {
+        const errorMsg = data.details || data.error || 'Unknown error';
+        alert(`Failed to send email: ${errorMsg}`);
+      }
+    } catch (error) {
+      console.error('Email send error:', error);
+      alert(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    } finally {
+      setEmailSending(false);
+    }
+  }
+
   // Export tracked readings to HTML
-  function exportToHTML() {
+  function exportToHTML(autoSend = false) {
     if (filteredReadings.length === 0) {
       alert("No readings to export");
       return;
@@ -688,6 +748,11 @@ export default function Home() {
 </body>
 </html>`;
 
+    // If auto-send is enabled and email is provided, send email
+    if (autoSend && autoEmailEnabled && emailAddress) {
+      sendEmailReport(html, stats);
+    }
+
     // Create download link
     const blob = new Blob([html], { type: "text/html;charset=utf-8;" });
     const link = document.createElement("a");
@@ -856,11 +921,16 @@ useEffect(() => {
       setIsTracking(false);
       setTrackingCompleted(true);
       clearInterval(checkInterval);
+
+      // Auto-send email if enabled
+      if (autoEmailEnabled && emailAddress && filteredReadings.length > 0) {
+        exportToHTML(true);
+      }
     }
   }, 1000); // Check every second
 
   return () => clearInterval(checkInterval);
-}, [isTracking, trackingEndTime, trackingCompleted]);
+}, [isTracking, trackingEndTime, trackingCompleted, autoEmailEnabled, emailAddress, filteredReadings]);
 
 // --- Auto-save CSV every 30 seconds during tracking ---
 useEffect(() => {
@@ -997,6 +1067,41 @@ return (
           </div>
         )}
 
+        {/* Email Configuration */}
+        <div style={{ display: "grid", gap: 8, marginTop: 12 }}>
+          <div>
+            <label style={{ fontSize: 13, opacity: 0.75, display: "block", marginBottom: 4 }}>
+              Email Address (Optional - for auto-send on completion)
+            </label>
+            <input
+              type="email"
+              value={emailAddress}
+              onChange={(e) => setEmailAddress(e.target.value)}
+              placeholder="your@email.com"
+              disabled={isTracking}
+              style={{
+                width: "100%",
+                padding: 8,
+                borderRadius: 8,
+                border: "1px solid rgba(0,0,0,0.2)",
+                fontSize: 14,
+              }}
+            />
+          </div>
+          <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer", fontSize: 13 }}>
+            <input
+              type="checkbox"
+              checked={autoEmailEnabled}
+              onChange={(e) => setAutoEmailEnabled(e.target.checked)}
+              disabled={isTracking || !emailAddress}
+              style={{ cursor: "pointer" }}
+            />
+            <span style={{ opacity: 0.75 }}>
+              Automatically email report when tracking completes
+            </span>
+          </label>
+        </div>
+
         <div style={{ display: "flex", gap: 8 }}>
           {!isTracking && !trackingCompleted ? (
             <button
@@ -1018,7 +1123,7 @@ return (
           ) : trackingCompleted ? (
             <>
               <button
-                onClick={exportToHTML}
+                onClick={() => exportToHTML(false)}
                 style={{
                   flex: 1,
                   padding: 10,
@@ -1053,7 +1158,7 @@ return (
           ) : (
             <>
               <button
-                onClick={exportToHTML}
+                onClick={() => exportToHTML(false)}
                 disabled={filteredReadings.length === 0}
                 style={{
                   flex: 1,

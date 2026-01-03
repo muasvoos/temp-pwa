@@ -55,6 +55,15 @@ Raspberry Pi (DS18B20) → Supabase `temperature_readings` → PWA (Realtime)
 ## Environment variables
 Create `.env.local` in project root:
 ```env
+# Supabase Configuration
 NEXT_PUBLIC_SUPABASE_URL=https://<PROJECT>.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY=<ANON_KEY>
 NEXT_PUBLIC_DEVICE_ID=pi4
+
+# Email Configuration (Optional - for auto-send feature)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_SECURE=false
+SMTP_USER=your-email@gmail.com
+SMTP_PASS=your-app-password
+SMTP_FROM=your-email@gmail.com
