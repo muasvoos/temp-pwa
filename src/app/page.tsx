@@ -13,6 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
+const APP_VERSION = "1.0.0"; // Application version
 
 // If your Pi uploads every 10s, 35–45s is a good offline threshold.
 const UPLOAD_INTERVAL_SEC = 10;              // <-- set to match your Pi script
@@ -455,6 +456,7 @@ export default function Home() {
       <p><strong>Time Zone:</strong> ${TIME_ZONE}</p>
       <p><strong>Total Readings:</strong> ${sortedReadings.length}</p>
       <p><strong>Generated:</strong> ${new Date().toLocaleString('en-US', { timeZone: TIME_ZONE })}</p>
+      <p><strong>Report Version:</strong> ${APP_VERSION}</p>
     </div>
 
     <!-- Ambient Room Sensor Section -->
@@ -900,7 +902,7 @@ return (
 
     <div style={{ opacity: 0.75, marginBottom: 12 }}>
       Device: <b>{DEVICE_ID}</b> • Time zone: <b>{TIME_ZONE}</b> • Status:{" "}
-      <b>{status}</b>
+      <b>{status}</b> • Version: <b>{APP_VERSION}</b>
     </div>
 
     {/* Time Range Tracking Controls */}
