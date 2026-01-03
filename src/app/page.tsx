@@ -187,6 +187,14 @@ export default function Home() {
   function stopTracking() {
     setIsTracking(false);
     setTrackingCompleted(true);
+
+    // Auto-send email if enabled
+    if (autoEmailEnabled && emailAddress && filteredReadings.length > 0) {
+      // Use setTimeout to ensure state updates have completed
+      setTimeout(() => {
+        exportToHTML(true);
+      }, 100);
+    }
   }
 
   // Clear all tracking data and reset
