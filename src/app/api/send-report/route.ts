@@ -12,6 +12,15 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Check for required environment variables
+    if (!process.env.SMTP_HOST || !process.env.SMTP_USER || !process.env.SMTP_PASS) {
+      console.error('Missing SMTP environment variables');
+      return NextResponse.json(
+        { error: 'Email service not configured. Please contact administrator.' },
+        { status: 503 }
+      );
+    }
+
     // Create transporter using environment variables
     const transporter = nodemailer.createTransport({
       host: process.env.SMTP_HOST,

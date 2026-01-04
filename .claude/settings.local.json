@@ -1,0 +1,8 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(taskkill //F //PID 35784)",
+      "Bash(npm run build:*)"
+    ]
+  }
+}

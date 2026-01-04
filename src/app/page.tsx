@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.4.0"; // Application version
+const APP_VERSION = "1.4.1"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -255,6 +255,10 @@ export default function Home() {
       const summary = generateSummary(stats);
       const timeRange = `${formatChicago(trackingStartTime)} - ${formatChicago(trackingEndTime)}`;
 
+      // Create AbortController for timeout (60 seconds for large reports)
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 60000);
+
       const response = await fetch('/api/send-report', {
         method: 'POST',
         headers: {
@@ -266,7 +270,10 @@ export default function Home() {
           summary,
           timeRange,
         }),
+        signal: controller.signal,
       });
+
+      clearTimeout(timeoutId);
 
       const data = await response.json();
 
@@ -278,7 +285,20 @@ export default function Home() {
       }
     } catch (error) {
       console.error('Email send error:', error);
-      alert(`Failed to send email: ${error instanceof Error ? error.message : 'Unknown error'}`);
+
+      // Better error messages for common issues
+      let errorMessage = 'Unknown error';
+      if (error instanceof Error) {
+        if (error.name === 'AbortError') {
+          errorMessage = 'Request timed out. The report may be too large or the server is slow. Try reducing the date range or sampling interval.';
+        } else if (error.message === 'Load failed' || error.message.includes('fetch')) {
+          errorMessage = 'Network error. Please check your internet connection and try again.';
+        } else {
+          errorMessage = error.message;
+        }
+      }
+
+      alert(`Failed to send email: ${errorMessage}`);
     } finally {
       setEmailSending(false);
     }
