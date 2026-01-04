@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.2"; // Application version
+const APP_VERSION = "1.5.3"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -536,6 +536,19 @@ export default function Home() {
       background: rgba(102, 187, 106, 0.2);
       color: #66bb6a;
       border-bottom-color: #66bb6a;
+    }
+    /* Temperature cell colors */
+    .ambient-color .temp-cell {
+      color: #ffffff;
+      font-weight: 600;
+    }
+    .test-probe-color .temp-cell {
+      color: #ef5350;
+      font-weight: 600;
+    }
+    .control-probe-color .temp-cell {
+      color: #66bb6a;
+      font-weight: 600;
     }
     .chart-container {
       background: #252525;
