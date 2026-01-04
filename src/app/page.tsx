@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.6"; // Application version
+const APP_VERSION = "1.5.7"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -84,6 +84,17 @@ export default function Home() {
   const [emailSending, setEmailSending] = useState<boolean>(false);
   const [samplingInterval, setSamplingInterval] = useState<number>(30);
   const [samplingIntervalUnit, setSamplingIntervalUnit] = useState<"seconds" | "minutes" | "hours">("seconds");
+
+  // Database cleanup state
+  const [dbStats, setDbStats] = useState<{
+    totalCount: number;
+    oldestReading: string | null;
+    newestReading: string | null;
+    last7Days: number;
+    last30Days: number;
+    olderThan30Days: number;
+  } | null>(null);
+  const [cleanupInProgress, setCleanupInProgress] = useState<boolean>(false);
 
   // Hardcoded upload interval (Pi's actual upload rate)
   const uploadIntervalInSeconds = 10;
@@ -262,6 +273,78 @@ export default function Home() {
       setStartTime("");
       setEndDate("");
       setEndTime("");
+    }
+  }
+
+  // Fetch database statistics
+  async function fetchDbStats() {
+    try {
+      const response = await fetch('/api/cleanup-old-readings');
+      const data = await response.json();
+
+      if (response.ok) {
+        setDbStats(data);
+      } else {
+        alert(`Failed to fetch database stats: ${data.error}`);
+      }
+    } catch (error) {
+      console.error('Error fetching database stats:', error);
+      alert('Failed to fetch database statistics');
+    }
+  }
+
+  // Cleanup old readings
+  async function cleanupOldReadings() {
+    const daysInput = prompt(
+      "Delete readings older than how many days?\n\n" +
+      "Recommended: 7-30 days for regular cleanup\n" +
+      "Note: This action cannot be undone!",
+      "30"
+    );
+
+    if (!daysInput) return; // User cancelled
+
+    const days = parseInt(daysInput);
+    if (isNaN(days) || days < 1) {
+      alert("Please enter a valid number of days (minimum 1)");
+      return;
+    }
+
+    const confirm = window.confirm(
+      `Are you sure you want to delete all readings older than ${days} days?\n\n` +
+      `This will permanently remove the data and cannot be undone.`
+    );
+
+    if (!confirm) return;
+
+    setCleanupInProgress(true);
+
+    try {
+      const response = await fetch('/api/cleanup-old-readings', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ retentionDays: days }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        alert(
+          `Successfully deleted ${data.deleted} readings!\n\n` +
+          `Cutoff date: ${formatChicago(data.cutoffDate)}`
+        );
+        // Refresh stats after cleanup
+        fetchDbStats();
+      } else {
+        alert(`Failed to cleanup: ${data.error || 'Unknown error'}`);
+      }
+    } catch (error) {
+      console.error('Cleanup error:', error);
+      alert('Failed to cleanup old readings');
+    } finally {
+      setCleanupInProgress(false);
     }
   }
 
@@ -1617,6 +1700,93 @@ return (
             )}
           </div>
         )}
+      </div>
+    </div>
+
+    {/* Database Cleanup Section */}
+    <div
+      style={{
+        padding: 16,
+        borderRadius: 12,
+        border: "1px solid rgba(0,0,0,0.2)",
+        marginBottom: 16,
+        backgroundColor: "rgba(0,0,0,0.02)",
+      }}
+    >
+      <div style={{ fontSize: 16, fontWeight: 700, marginBottom: 12 }}>
+        🗄️ Database Management
+      </div>
+
+      {dbStats ? (
+        <div style={{ display: "grid", gap: 8, marginBottom: 12 }}>
+          <div style={{ fontSize: 13, opacity: 0.85 }}>
+            <strong>Total Readings:</strong> {dbStats.totalCount.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.85 }}>
+            <strong>Last 7 Days:</strong> {dbStats.last7Days.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.85 }}>
+            <strong>Last 30 Days:</strong> {dbStats.last30Days.toLocaleString()}
+          </div>
+          <div style={{ fontSize: 13, opacity: 0.85 }}>
+            <strong>Older than 30 Days:</strong> {dbStats.olderThan30Days.toLocaleString()}
+          </div>
+          {dbStats.oldestReading && (
+            <div style={{ fontSize: 13, opacity: 0.85 }}>
+              <strong>Oldest Reading:</strong> {formatChicago(dbStats.oldestReading)}
+            </div>
+          )}
+          {dbStats.newestReading && (
+            <div style={{ fontSize: 13, opacity: 0.85 }}>
+              <strong>Newest Reading:</strong> {formatChicago(dbStats.newestReading)}
+            </div>
+          )}
+        </div>
+      ) : (
+        <div style={{ fontSize: 13, opacity: 0.6, marginBottom: 12 }}>
+          Click "Refresh Stats" to view database statistics
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 8 }}>
+        <button
+          onClick={fetchDbStats}
+          disabled={cleanupInProgress}
+          style={{
+            flex: 1,
+            padding: 10,
+            borderRadius: 8,
+            border: "none",
+            backgroundColor: cleanupInProgress ? "#ccc" : "#2196f3",
+            color: "white",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: cleanupInProgress ? "not-allowed" : "pointer",
+          }}
+        >
+          {cleanupInProgress ? "Processing..." : "Refresh Stats"}
+        </button>
+        <button
+          onClick={cleanupOldReadings}
+          disabled={cleanupInProgress || !dbStats || dbStats.totalCount === 0}
+          style={{
+            flex: 1,
+            padding: 10,
+            borderRadius: 8,
+            border: "none",
+            backgroundColor: cleanupInProgress || !dbStats || dbStats.totalCount === 0 ? "#ccc" : "#ff9800",
+            color: "white",
+            fontSize: 14,
+            fontWeight: 600,
+            cursor: cleanupInProgress || !dbStats || dbStats.totalCount === 0 ? "not-allowed" : "pointer",
+          }}
+        >
+          {cleanupInProgress ? "Cleaning..." : "Cleanup Old Data"}
+        </button>
+      </div>
+
+      <div style={{ fontSize: 11, opacity: 0.6, marginTop: 8 }}>
+        Cleanup removes old readings to save database space. This action cannot be undone.
       </div>
     </div>
 
