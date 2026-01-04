@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.5"; // Application version
+const APP_VERSION = "1.5.6"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -218,7 +218,8 @@ export default function Home() {
         .eq("device_id", DEVICE_ID)
         .gte("ts_utc", startDateTime.toISOString())
         .lte("ts_utc", endDateTime.toISOString())
-        .order("ts_utc", { ascending: false });
+        .order("ts_utc", { ascending: false })
+        .limit(100000);
 
       if (error) {
         alert(`Error fetching data: ${error.message}`);
@@ -1177,7 +1178,8 @@ useEffect(() => {
         .eq("device_id", DEVICE_ID)
         .gte("ts_utc", trackingStartTimeRef.current)
         .lte("ts_utc", trackingEndTimeRef.current)
-        .order("ts_utc", { ascending: false });
+        .order("ts_utc", { ascending: false })
+        .limit(100000);
 
       if (!error && data) {
         setFilteredReadings(data as Reading[]);
@@ -1714,10 +1716,15 @@ return (
             >
               <div style={{ fontSize: 18, fontWeight: 700, marginBottom: 12 }}>
                 {sensorName} ({readings.length} readings)
+                {readings.length > 10 && (
+                  <span style={{ fontSize: 14, fontWeight: 400, opacity: 0.6, marginLeft: 8 }}>
+                    - showing latest 10
+                  </span>
+                )}
               </div>
 
               <div style={{ display: "grid", gap: 8 }}>
-                {readings.map((reading, idx) => (
+                {readings.slice(0, 10).map((reading, idx) => (
                   <div
                     key={`${reading.ts_utc}-${idx}`}
                     style={{
