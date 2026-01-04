@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.4.3"; // Application version
+const APP_VERSION = "1.5.0"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -27,6 +27,10 @@ function formatChicago(isoUtc: string) {
     second: "2-digit",
     hour12: true,
   }).format(d);
+}
+
+function celsiusToFahrenheit(celsius: number): number {
+  return (celsius * 9/5) + 32;
 }
 
 export default function Home() {
@@ -651,9 +655,9 @@ export default function Home() {
         <div class="summary-card">
           <h3>Statistics</h3>
           <p><strong>Readings:</strong> ${stats['ambient']?.count || 0}</p>
-          <p><strong>Min:</strong> ${stats['ambient']?.min.toFixed(2) || 0} °C</p>
-          <p><strong>Max:</strong> ${stats['ambient']?.max.toFixed(2) || 0} °C</p>
-          <p><strong>Avg:</strong> ${stats['ambient']?.avg.toFixed(2) || 0} °C</p>
+          <p><strong>Min:</strong> ${stats['ambient']?.min.toFixed(2) || 0} °C (${((stats['ambient']?.min || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Max:</strong> ${stats['ambient']?.max.toFixed(2) || 0} °C (${((stats['ambient']?.max || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Avg:</strong> ${stats['ambient']?.avg.toFixed(2) || 0} °C (${((stats['ambient']?.avg || 0) * 9/5 + 32).toFixed(2)} °F)</p>
         </div>
       </div>
 
@@ -666,6 +670,7 @@ export default function Home() {
           <tr>
             <th>Timestamp</th>
             <th>Temperature (°C)</th>
+            <th>Temperature (°F)</th>
             <th>Sensor ID</th>
           </tr>
         </thead>
@@ -674,6 +679,7 @@ export default function Home() {
           <tr>
             <td>${formatChicago(reading.ts_utc)}</td>
             <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+            <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
             <td>${reading.sensor_id}</td>
           </tr>
           `).join('')}
@@ -691,9 +697,9 @@ export default function Home() {
         <div class="summary-card">
           <h3>Statistics</h3>
           <p><strong>Readings:</strong> ${stats['test_probe']?.count || 0}</p>
-          <p><strong>Min:</strong> ${stats['test_probe']?.min.toFixed(2) || 0} °C</p>
-          <p><strong>Max:</strong> ${stats['test_probe']?.max.toFixed(2) || 0} °C</p>
-          <p><strong>Avg:</strong> ${stats['test_probe']?.avg.toFixed(2) || 0} °C</p>
+          <p><strong>Min:</strong> ${stats['test_probe']?.min.toFixed(2) || 0} °C (${((stats['test_probe']?.min || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Max:</strong> ${stats['test_probe']?.max.toFixed(2) || 0} °C (${((stats['test_probe']?.max || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Avg:</strong> ${stats['test_probe']?.avg.toFixed(2) || 0} °C (${((stats['test_probe']?.avg || 0) * 9/5 + 32).toFixed(2)} °F)</p>
         </div>
       </div>
 
@@ -706,6 +712,7 @@ export default function Home() {
           <tr>
             <th>Timestamp</th>
             <th>Temperature (°C)</th>
+            <th>Temperature (°F)</th>
             <th>Sensor ID</th>
           </tr>
         </thead>
@@ -714,6 +721,7 @@ export default function Home() {
           <tr>
             <td>${formatChicago(reading.ts_utc)}</td>
             <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+            <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
             <td>${reading.sensor_id}</td>
           </tr>
           `).join('')}
@@ -731,9 +739,9 @@ export default function Home() {
         <div class="summary-card">
           <h3>Statistics</h3>
           <p><strong>Readings:</strong> ${stats['control_probe']?.count || 0}</p>
-          <p><strong>Min:</strong> ${stats['control_probe']?.min.toFixed(2) || 0} °C</p>
-          <p><strong>Max:</strong> ${stats['control_probe']?.max.toFixed(2) || 0} °C</p>
-          <p><strong>Avg:</strong> ${stats['control_probe']?.avg.toFixed(2) || 0} °C</p>
+          <p><strong>Min:</strong> ${stats['control_probe']?.min.toFixed(2) || 0} °C (${((stats['control_probe']?.min || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Max:</strong> ${stats['control_probe']?.max.toFixed(2) || 0} °C (${((stats['control_probe']?.max || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Avg:</strong> ${stats['control_probe']?.avg.toFixed(2) || 0} °C (${((stats['control_probe']?.avg || 0) * 9/5 + 32).toFixed(2)} °F)</p>
         </div>
       </div>
 
@@ -746,6 +754,7 @@ export default function Home() {
           <tr>
             <th>Timestamp</th>
             <th>Temperature (°C)</th>
+            <th>Temperature (°F)</th>
             <th>Sensor ID</th>
           </tr>
         </thead>
@@ -754,6 +763,7 @@ export default function Home() {
           <tr>
             <td>${formatChicago(reading.ts_utc)}</td>
             <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+            <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
             <td>${reading.sensor_id}</td>
           </tr>
           `).join('')}
@@ -1576,6 +1586,10 @@ return (
               {Number(r.temp_c).toFixed(2)} °C
             </div>
 
+            <div style={{ fontSize: 28, fontWeight: 600, marginTop: 4, opacity: 0.8 }}>
+              {celsiusToFahrenheit(Number(r.temp_c)).toFixed(2)} °F
+            </div>
+
             <div style={{ marginTop: 8, opacity: 0.75, fontSize: 14 }}>
               Updated: <b>{formatChicago(r.ts_utc)}</b>
             </div>
@@ -1630,8 +1644,13 @@ return (
                       alignItems: "center",
                     }}
                   >
-                    <div style={{ fontSize: 24, fontWeight: 700 }}>
-                      {Number(reading.temp_c).toFixed(2)} °C
+                    <div>
+                      <div style={{ fontSize: 24, fontWeight: 700 }}>
+                        {Number(reading.temp_c).toFixed(2)} °C
+                      </div>
+                      <div style={{ fontSize: 16, fontWeight: 600, opacity: 0.7, marginTop: 2 }}>
+                        {celsiusToFahrenheit(Number(reading.temp_c)).toFixed(2)} °F
+                      </div>
                     </div>
                     <div style={{ fontSize: 13, opacity: 0.75 }}>
                       {formatChicago(reading.ts_utc)}
