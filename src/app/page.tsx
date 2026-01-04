@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.3.1"; // Application version
+const APP_VERSION = "1.4.0"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -36,8 +36,9 @@ export default function Home() {
   const [status, setStatus] = useState<string>("Connecting…");
 
   // --- Time range tracking ---
-  const [selectedDate, setSelectedDate] = useState<string>("");
+  const [startDate, setStartDate] = useState<string>("");
   const [startTime, setStartTime] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [endTime, setEndTime] = useState<string>("");
   const [filteredReadings, setFilteredReadings] = useState<Reading[]>([]);
   const [isTracking, setIsTracking] = useState<boolean>(false);
@@ -153,16 +154,16 @@ export default function Home() {
 
     if (useManualTime) {
       // Manual mode: require date and time inputs
-      if (!selectedDate || !startTime || !endTime) {
-        alert("Please select a date, start time, and end time");
+      if (!startDate || !startTime || !endDate || !endTime) {
+        alert("Please select start date, start time, end date, and end time");
         return;
       }
 
-      startDateTime = new Date(`${selectedDate}T${startTime}:00`);
-      endDateTime = new Date(`${selectedDate}T${endTime}:00`);
+      startDateTime = new Date(`${startDate}T${startTime}:00`);
+      endDateTime = new Date(`${endDate}T${endTime}:00`);
 
       if (endDateTime <= startDateTime) {
-        alert("End time must be after start time");
+        alert("End date/time must be after start date/time");
         return;
       }
     } else {
@@ -219,8 +220,9 @@ export default function Home() {
     setTrackingStartTime("");
     setTrackingEndTime("");
     if (useManualTime) {
-      setSelectedDate("");
+      setStartDate("");
       setStartTime("");
+      setEndDate("");
       setEndTime("");
     }
   }
@@ -1198,62 +1200,73 @@ return (
 
       <div style={{ display: "grid", gap: 12 }}>
         {useManualTime && (
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8 }}>
-            <div>
-              <label style={{ fontSize: 13, opacity: 0.75, display: "block", marginBottom: 4 }}>
-                Date
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ fontSize: 13, opacity: 0.75, fontWeight: 600 }}>
+                Start Date & Time
               </label>
-              <input
-                type="date"
-                value={selectedDate}
-                onChange={(e) => setSelectedDate(e.target.value)}
-                disabled={isTracking}
-                style={{
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid rgba(0,0,0,0.2)",
-                  fontSize: 14,
-                }}
-              />
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 8 }}>
+                <input
+                  type="date"
+                  value={startDate}
+                  onChange={(e) => setStartDate(e.target.value)}
+                  disabled={isTracking}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.2)",
+                    fontSize: 14,
+                  }}
+                />
+                <input
+                  type="time"
+                  value={startTime}
+                  onChange={(e) => setStartTime(e.target.value)}
+                  disabled={isTracking}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.2)",
+                    fontSize: 14,
+                  }}
+                />
+              </div>
             </div>
 
-            <div>
-              <label style={{ fontSize: 13, opacity: 0.75, display: "block", marginBottom: 4 }}>
-                Start Time
+            <div style={{ display: "grid", gap: 8 }}>
+              <label style={{ fontSize: 13, opacity: 0.75, fontWeight: 600 }}>
+                End Date & Time
               </label>
-              <input
-                type="time"
-                value={startTime}
-                onChange={(e) => setStartTime(e.target.value)}
-                disabled={isTracking}
-                style={{
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid rgba(0,0,0,0.2)",
-                  fontSize: 14,
-                }}
-              />
-            </div>
-
-            <div>
-              <label style={{ fontSize: 13, opacity: 0.75, display: "block", marginBottom: 4 }}>
-                End Time
-              </label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                disabled={isTracking}
-                style={{
-                  width: "100%",
-                  padding: 8,
-                  borderRadius: 8,
-                  border: "1px solid rgba(0,0,0,0.2)",
-                  fontSize: 14,
-                }}
-              />
+              <div style={{ display: "grid", gridTemplateColumns: "1.2fr 1fr", gap: 8 }}>
+                <input
+                  type="date"
+                  value={endDate}
+                  onChange={(e) => setEndDate(e.target.value)}
+                  disabled={isTracking}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.2)",
+                    fontSize: 14,
+                  }}
+                />
+                <input
+                  type="time"
+                  value={endTime}
+                  onChange={(e) => setEndTime(e.target.value)}
+                  disabled={isTracking}
+                  style={{
+                    width: "100%",
+                    padding: 8,
+                    borderRadius: 8,
+                    border: "1px solid rgba(0,0,0,0.2)",
+                    fontSize: 14,
+                  }}
+                />
+              </div>
             </div>
           </div>
         )}
