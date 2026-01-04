@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.7"; // Application version
+const APP_VERSION = "1.6.0"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -58,6 +58,7 @@ function getSensorColor(sensorName: string): string {
   if (sensorName === 'ambient') return '#ffffff';
   if (sensorName === 'test_probe') return '#ef5350';
   if (sensorName === 'control_probe') return '#66bb6a';
+  if (sensorName === 'outdoor') return '#64b5f6';
   return '#64b5f6'; // default color
 }
 
@@ -95,6 +96,10 @@ export default function Home() {
     olderThan30Days: number;
   } | null>(null);
   const [cleanupInProgress, setCleanupInProgress] = useState<boolean>(false);
+
+  // Outdoor weather state (ZIP 53224 - Milwaukee, WI)
+  const [outdoorTemp, setOutdoorTemp] = useState<number | null>(null);
+  const [outdoorLastUpdate, setOutdoorLastUpdate] = useState<string | null>(null);
 
   // Hardcoded upload interval (Pi's actual upload rate)
   const uploadIntervalInSeconds = 10;
@@ -348,6 +353,25 @@ export default function Home() {
     }
   }
 
+  // Fetch outdoor weather for ZIP 53224 (Milwaukee, WI: 43.0731°N, 87.9065°W)
+  async function fetchOutdoorWeather() {
+    try {
+      const lat = 43.0731;
+      const lon = -87.9065;
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m&temperature_unit=celsius`
+      );
+      const data = await response.json();
+
+      if (data.current && data.current.temperature_2m !== undefined) {
+        setOutdoorTemp(data.current.temperature_2m);
+        setOutdoorLastUpdate(new Date().toISOString());
+      }
+    } catch (error) {
+      console.error('Failed to fetch outdoor weather:', error);
+    }
+  }
+
   // Generate summary text for email
   function generateSummary(stats: Record<string, { min: number; max: number; avg: number; count: number }>) {
     let summary = "Temperature Readings Summary:\n\n";
@@ -527,17 +551,20 @@ export default function Home() {
     const testProbeReadings = reportReadings.filter(r => r.sensor_name === 'test_probe');
     const controlProbeReadings = reportReadings.filter(r => r.sensor_name === 'control_probe');
 
-    // Prepare chart data for ambient
+    // Prepare chart data for ambient (both Celsius and Fahrenheit)
     const ambientLabels = ambientReadings.map(r => formatChicago(r.ts_utc));
-    const ambientTemps = ambientReadings.map(r => Number(r.temp_c));
+    const ambientTempsC = ambientReadings.map(r => Number(r.temp_c));
+    const ambientTempsF = ambientReadings.map(r => celsiusToFahrenheit(Number(r.temp_c)));
 
-    // Prepare chart data for test_probe
+    // Prepare chart data for test_probe (both Celsius and Fahrenheit)
     const testProbeLabels = testProbeReadings.map(r => formatChicago(r.ts_utc));
-    const testProbeTemps = testProbeReadings.map(r => Number(r.temp_c));
+    const testProbeTempsC = testProbeReadings.map(r => Number(r.temp_c));
+    const testProbeTempsF = testProbeReadings.map(r => celsiusToFahrenheit(Number(r.temp_c)));
 
-    // Prepare chart data for control_probe
+    // Prepare chart data for control_probe (both Celsius and Fahrenheit)
     const controlProbeLabels = controlProbeReadings.map(r => formatChicago(r.ts_utc));
-    const controlProbeTemps = controlProbeReadings.map(r => Number(r.temp_c));
+    const controlProbeTempsC = controlProbeReadings.map(r => Number(r.temp_c));
+    const controlProbeTempsF = controlProbeReadings.map(r => celsiusToFahrenheit(Number(r.temp_c)));
 
     // Create HTML content
     const html = `<!DOCTYPE html>
@@ -780,6 +807,42 @@ export default function Home() {
         display: none;
       }
     }
+    .collapsible-header {
+      background: #2a2a2a;
+      padding: 12px 20px;
+      cursor: pointer;
+      border-radius: 8px;
+      margin: 20px 0 10px 0;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border: 1px solid #333;
+      transition: background 0.2s;
+    }
+    .collapsible-header:hover {
+      background: #333;
+    }
+    .collapsible-header h3 {
+      margin: 0;
+      color: #64b5f6;
+      font-size: 18px;
+    }
+    .collapsible-arrow {
+      font-size: 20px;
+      transition: transform 0.3s;
+    }
+    .collapsible-arrow.expanded {
+      transform: rotate(180deg);
+    }
+    .collapsible-content {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease-out;
+    }
+    .collapsible-content.expanded {
+      max-height: 100000px;
+      transition: max-height 0.5s ease-in;
+    }
   </style>
 </head>
 <body>
@@ -817,6 +880,27 @@ export default function Home() {
       <p><strong>Report Version:</strong> ${APP_VERSION}</p>
     </div>
 
+    <!-- Temperature Unit Toggle -->
+    <div style="margin: 20px 0; padding: 15px; background: #252525; border-radius: 8px; border: 1px solid #333;">
+      <div style="display: flex; align-items: center; gap: 15px; flex-wrap: wrap;">
+        <div style="display: flex; align-items: center; gap: 15px;">
+          <span style="font-weight: 600; color: #e0e0e0;">Chart Temperature Unit:</span>
+          <button id="toggleCelsius" onclick="switchToUnit('celsius')" style="padding: 8px 16px; border-radius: 6px; border: 2px solid #64b5f6; background: #64b5f6; color: white; font-weight: 600; cursor: pointer;">
+            Celsius (°C)
+          </button>
+          <button id="toggleFahrenheit" onclick="switchToUnit('fahrenheit')" style="padding: 8px 16px; border-radius: 6px; border: 2px solid #444; background: transparent; color: #b0b0b0; font-weight: 600; cursor: pointer;">
+            Fahrenheit (°F)
+          </button>
+        </div>
+        <div style="display: flex; align-items: center; gap: 15px; margin-left: auto;">
+          <span style="font-weight: 600; color: #e0e0e0;">Data Tables:</span>
+          <button id="toggleExpandAll" onclick="toggleAllTables()" style="padding: 8px 16px; border-radius: 6px; border: 2px solid #66bb6a; background: transparent; color: #b0b0b0; font-weight: 600; cursor: pointer;">
+            Expand All
+          </button>
+        </div>
+      </div>
+    </div>
+
     <!-- Ambient Sensor Section -->
     ${ambientReadings.length > 0 ? `
     <div class="sensor-section ambient-color" id="ambient-section">
@@ -836,26 +920,32 @@ export default function Home() {
         <canvas id="ambientChart"></canvas>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Temperature (°C)</th>
-            <th>Temperature (°F)</th>
-            <th>Sensor ID</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${ambientReadings.map(reading => `
-          <tr>
-            <td>${formatChicago(reading.ts_utc)}</td>
-            <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
-            <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
-            <td>${reading.sensor_id}</td>
-          </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <div class="collapsible-header" onclick="toggleTable(this)">
+        <h3>📊 Timestamp Data (${ambientReadings.length} readings)</h3>
+        <span class="collapsible-arrow">▼</span>
+      </div>
+      <div class="collapsible-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temperature (°C)</th>
+              <th>Temperature (°F)</th>
+              <th>Sensor ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${ambientReadings.map(reading => `
+            <tr>
+              <td>${formatChicago(reading.ts_utc)}</td>
+              <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+              <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
+              <td>${reading.sensor_id}</td>
+            </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
     ` : ''}
 
@@ -878,26 +968,32 @@ export default function Home() {
         <canvas id="testProbeChart"></canvas>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Temperature (°C)</th>
-            <th>Temperature (°F)</th>
-            <th>Sensor ID</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${testProbeReadings.map((reading: Reading) => `
-          <tr>
-            <td>${formatChicago(reading.ts_utc)}</td>
-            <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
-            <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
-            <td>${reading.sensor_id}</td>
-          </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <div class="collapsible-header" onclick="toggleTable(this)">
+        <h3>📊 Timestamp Data (${testProbeReadings.length} readings)</h3>
+        <span class="collapsible-arrow">▼</span>
+      </div>
+      <div class="collapsible-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temperature (°C)</th>
+              <th>Temperature (°F)</th>
+              <th>Sensor ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${testProbeReadings.map((reading: Reading) => `
+            <tr>
+              <td>${formatChicago(reading.ts_utc)}</td>
+              <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+              <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
+              <td>${reading.sensor_id}</td>
+            </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
     ` : ''}
 
@@ -920,26 +1016,32 @@ export default function Home() {
         <canvas id="controlProbeChart"></canvas>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>Timestamp</th>
-            <th>Temperature (°C)</th>
-            <th>Temperature (°F)</th>
-            <th>Sensor ID</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${controlProbeReadings.map((reading: Reading) => `
-          <tr>
-            <td>${formatChicago(reading.ts_utc)}</td>
-            <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
-            <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
-            <td>${reading.sensor_id}</td>
-          </tr>
-          `).join('')}
-        </tbody>
-      </table>
+      <div class="collapsible-header" onclick="toggleTable(this)">
+        <h3>📊 Timestamp Data (${controlProbeReadings.length} readings)</h3>
+        <span class="collapsible-arrow">▼</span>
+      </div>
+      <div class="collapsible-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temperature (°C)</th>
+              <th>Temperature (°F)</th>
+              <th>Sensor ID</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${controlProbeReadings.map((reading: Reading) => `
+            <tr>
+              <td>${formatChicago(reading.ts_utc)}</td>
+              <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+              <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
+              <td>${reading.sensor_id}</td>
+            </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
     </div>
     ` : ''}
   </div>
@@ -949,16 +1051,131 @@ export default function Home() {
     Chart.defaults.color = '#e0e0e0';
     Chart.defaults.borderColor = '#333';
 
+    // Store chart instances
+    let ambientChart = null;
+    let testProbeChart = null;
+    let controlProbeChart = null;
+    let currentUnit = 'celsius';
+
+    // Temperature data (Celsius and Fahrenheit)
+    const chartData = {
+      ambient: {
+        labels: ${JSON.stringify(ambientLabels)},
+        celsius: ${JSON.stringify(ambientTempsC)},
+        fahrenheit: ${JSON.stringify(ambientTempsF)}
+      },
+      testProbe: {
+        labels: ${JSON.stringify(testProbeLabels)},
+        celsius: ${JSON.stringify(testProbeTempsC)},
+        fahrenheit: ${JSON.stringify(testProbeTempsF)}
+      },
+      controlProbe: {
+        labels: ${JSON.stringify(controlProbeLabels)},
+        celsius: ${JSON.stringify(controlProbeTempsC)},
+        fahrenheit: ${JSON.stringify(controlProbeTempsF)}
+      }
+    };
+
+    // Function to toggle individual table
+    function toggleTable(header) {
+      const content = header.nextElementSibling;
+      const arrow = header.querySelector('.collapsible-arrow');
+
+      if (content.classList.contains('expanded')) {
+        content.classList.remove('expanded');
+        arrow.classList.remove('expanded');
+      } else {
+        content.classList.add('expanded');
+        arrow.classList.add('expanded');
+      }
+    }
+
+    // Function to toggle all tables
+    function toggleAllTables() {
+      const headers = document.querySelectorAll('.collapsible-header');
+      const contents = document.querySelectorAll('.collapsible-content');
+      const arrows = document.querySelectorAll('.collapsible-arrow');
+      const button = document.getElementById('toggleExpandAll');
+
+      // Check if any are collapsed
+      const anyCollapsed = Array.from(contents).some(c => !c.classList.contains('expanded'));
+
+      if (anyCollapsed) {
+        // Expand all
+        contents.forEach(c => c.classList.add('expanded'));
+        arrows.forEach(a => a.classList.add('expanded'));
+        button.textContent = 'Collapse All';
+        button.style.background = '#66bb6a';
+        button.style.borderColor = '#66bb6a';
+        button.style.color = 'white';
+      } else {
+        // Collapse all
+        contents.forEach(c => c.classList.remove('expanded'));
+        arrows.forEach(a => a.classList.remove('expanded'));
+        button.textContent = 'Expand All';
+        button.style.background = 'transparent';
+        button.style.borderColor = '#66bb6a';
+        button.style.color = '#b0b0b0';
+      }
+    }
+
+    // Function to switch temperature unit
+    function switchToUnit(unit) {
+      currentUnit = unit;
+
+      // Update button styles
+      const celsiusBtn = document.getElementById('toggleCelsius');
+      const fahrenheitBtn = document.getElementById('toggleFahrenheit');
+
+      if (unit === 'celsius') {
+        celsiusBtn.style.background = '#64b5f6';
+        celsiusBtn.style.borderColor = '#64b5f6';
+        celsiusBtn.style.color = 'white';
+        fahrenheitBtn.style.background = 'transparent';
+        fahrenheitBtn.style.borderColor = '#444';
+        fahrenheitBtn.style.color = '#b0b0b0';
+      } else {
+        fahrenheitBtn.style.background = '#64b5f6';
+        fahrenheitBtn.style.borderColor = '#64b5f6';
+        fahrenheitBtn.style.color = 'white';
+        celsiusBtn.style.background = 'transparent';
+        celsiusBtn.style.borderColor = '#444';
+        celsiusBtn.style.color = '#b0b0b0';
+      }
+
+      // Update charts
+      if (ambientChart) {
+        ambientChart.data.datasets[0].data = unit === 'celsius' ? chartData.ambient.celsius : chartData.ambient.fahrenheit;
+        ambientChart.data.datasets[0].label = unit === 'celsius' ? 'Ambient Temperature (°C)' : 'Ambient Temperature (°F)';
+        ambientChart.options.scales.y.title.text = unit === 'celsius' ? 'Temperature (°C)' : 'Temperature (°F)';
+        ambientChart.update();
+      }
+
+      if (testProbeChart) {
+        testProbeChart.data.datasets[0].data = unit === 'celsius' ? chartData.testProbe.celsius : chartData.testProbe.fahrenheit;
+        testProbeChart.data.datasets[0].label = unit === 'celsius' ? 'Test Probe Temperature (°C)' : 'Test Probe Temperature (°F)';
+        testProbeChart.options.scales.y.title.text = unit === 'celsius' ? 'Temperature (°C)' : 'Temperature (°F)';
+        testProbeChart.update();
+      }
+
+      if (controlProbeChart) {
+        controlProbeChart.data.datasets[0].data = unit === 'celsius' ? chartData.controlProbe.celsius : chartData.controlProbe.fahrenheit;
+        controlProbeChart.data.datasets[0].label = unit === 'celsius' ? 'Control Probe Temperature (°C)' : 'Control Probe Temperature (°F)';
+        controlProbeChart.options.scales.y.title.text = unit === 'celsius' ? 'Temperature (°C)' : 'Temperature (°F)';
+        controlProbeChart.update();
+      }
+    }
+
     // Ambient Chart
     ${ambientReadings.length > 0 ? `
     const ambientCtx = document.getElementById('ambientChart').getContext('2d');
-    new Chart(ambientCtx, {
+    ambientChart = new Chart(ambientCtx, {
       type: 'line',
       data: {
-        labels: ${JSON.stringify(ambientLabels)},
+        labels: chartData.ambient.labels,
         datasets: [{
           label: 'Ambient Temperature (°C)',
-          data: ${JSON.stringify(ambientTemps)},
+          data: chartData.ambient.celsius,
           borderColor: '#ffffff',
           backgroundColor: 'rgba(255, 255, 255, 0.1)',
           borderWidth: 2,
@@ -1022,13 +1239,13 @@ export default function Home() {
     // Test Probe Chart
     ${testProbeReadings.length > 0 ? `
     const testProbeCtx = document.getElementById('testProbeChart').getContext('2d');
-    new Chart(testProbeCtx, {
+    testProbeChart = new Chart(testProbeCtx, {
       type: 'line',
       data: {
-        labels: ${JSON.stringify(testProbeLabels)},
+        labels: chartData.testProbe.labels,
         datasets: [{
           label: 'Test Probe Temperature (°C)',
-          data: ${JSON.stringify(testProbeTemps)},
+          data: chartData.testProbe.celsius,
           borderColor: '#ef5350',
           backgroundColor: 'rgba(239, 83, 80, 0.1)',
           borderWidth: 2,
@@ -1092,13 +1309,13 @@ export default function Home() {
     // Control Probe Chart
     ${controlProbeReadings.length > 0 ? `
     const controlProbeCtx = document.getElementById('controlProbeChart').getContext('2d');
-    new Chart(controlProbeCtx, {
+    controlProbeChart = new Chart(controlProbeCtx, {
       type: 'line',
       data: {
-        labels: ${JSON.stringify(controlProbeLabels)},
+        labels: chartData.controlProbe.labels,
         datasets: [{
           label: 'Control Probe Temperature (°C)',
-          data: ${JSON.stringify(controlProbeTemps)},
+          data: chartData.controlProbe.celsius,
           borderColor: '#66bb6a',
           backgroundColor: 'rgba(102, 187, 106, 0.1)',
           borderWidth: 2,
@@ -1345,6 +1562,18 @@ useEffect(() => {
 
   return () => clearInterval(checkInterval);
 }, [isTracking, trackingEndTime, trackingCompleted, autoEmailEnabled, emailAddress, filteredReadings]);
+
+// --- Fetch outdoor weather periodically ---
+useEffect(() => {
+  // Fetch immediately on mount
+  fetchOutdoorWeather();
+
+  // Then fetch every 10 minutes (600000 ms)
+  const weatherInterval = setInterval(fetchOutdoorWeather, 600000);
+
+  return () => clearInterval(weatherInterval);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, []);
 
 // --- Auto-save CSV every 30 seconds during tracking ---
 useEffect(() => {
@@ -1820,6 +2049,41 @@ return (
       </div>
     )}
     {/* 🔼 END added section */}
+
+    {/* Outdoor Weather Temperature */}
+    {outdoorTemp !== null && (
+      <div
+        style={{
+          backgroundColor: "#1f1f1f",
+          border: "1px solid rgba(0,0,0,0.15)",
+          borderRadius: 16,
+          padding: 16,
+          marginBottom: 16,
+        }}
+      >
+        <div style={{ fontSize: 18, fontWeight: 700 }}>
+          outdoor (ZIP 53224)
+        </div>
+
+        <div style={{ fontSize: 42, fontWeight: 800, marginTop: 6, color: getSensorColor('outdoor') }}>
+          {outdoorTemp.toFixed(2)} °C
+        </div>
+
+        <div style={{ fontSize: 28, fontWeight: 600, marginTop: 4, opacity: 0.8, color: getSensorColor('outdoor') }}>
+          {celsiusToFahrenheit(outdoorTemp).toFixed(2)} °F
+        </div>
+
+        {outdoorLastUpdate && (
+          <div style={{ marginTop: 8, opacity: 0.75, fontSize: 14 }}>
+            Updated: <b>{formatChicago(outdoorLastUpdate)}</b>
+          </div>
+        )}
+
+        <div style={{ marginTop: 4, opacity: 0.6, fontSize: 12 }}>
+          Source: Open-Meteo API (Milwaukee, WI)
+        </div>
+      </div>
+    )}
 
     {rows.length === 0 ? (
       <p style={{ opacity: 0.7 }}>
