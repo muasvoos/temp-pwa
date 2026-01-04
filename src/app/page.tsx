@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.3"; // Application version
+const APP_VERSION = "1.5.4"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -22,6 +22,27 @@ function formatChicago(isoUtc: string) {
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: true,
+  }).format(d);
+}
+
+function formatChicagoDate(isoUtc: string) {
+  const d = new Date(isoUtc);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(d);
+}
+
+function formatChicagoTime(isoUtc: string) {
+  const d = new Date(isoUtc);
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: TIME_ZONE,
     hour: "numeric",
     minute: "2-digit",
     second: "2-digit",
@@ -213,6 +234,11 @@ export default function Home() {
   function stopTracking() {
     setIsTracking(false);
     setTrackingCompleted(true);
+
+    // Update end time to now if in auto mode
+    if (!useManualTime) {
+      setTrackingEndTime(new Date().toISOString());
+    }
 
     // Auto-send email if enabled
     if (autoEmailEnabled && emailAddress && filteredReadings.length > 0) {
@@ -694,7 +720,11 @@ export default function Home() {
 
     <div class="metadata">
       <p><strong>Device:</strong> ${DEVICE_ID}</p>
-      <p><strong>Time Range:</strong> ${formatChicago(trackingStartTime)} - ${formatChicago(trackingEndTime)}</p>
+      <p><strong>Time Range</strong></p>
+      <p style="margin-left: 20px;"><strong>Start Date:</strong> ${formatChicagoDate(trackingStartTime)}</p>
+      <p style="margin-left: 20px;"><strong>Start Time:</strong> ${formatChicagoTime(trackingStartTime)}</p>
+      <p style="margin-left: 20px;"><strong>End Date:</strong> ${formatChicagoDate(trackingEndTime)}</p>
+      <p style="margin-left: 20px;"><strong>End Time:</strong> ${formatChicagoTime(trackingEndTime)}</p>
       <p><strong>Time Zone:</strong> ${TIME_ZONE}</p>
       <p><strong>Total Readings Collected:</strong> ${sortedReadings.length}</p>
       <p><strong>Sampled Readings in Report:</strong> ${reportReadings.length}</p>
