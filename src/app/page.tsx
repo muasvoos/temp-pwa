@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.4"; // Application version
+const APP_VERSION = "1.5.5"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -1177,8 +1177,7 @@ useEffect(() => {
         .eq("device_id", DEVICE_ID)
         .gte("ts_utc", trackingStartTimeRef.current)
         .lte("ts_utc", trackingEndTimeRef.current)
-        .order("ts_utc", { ascending: false })
-        .limit(100);
+        .order("ts_utc", { ascending: false });
 
       if (!error && data) {
         setFilteredReadings(data as Reading[]);
