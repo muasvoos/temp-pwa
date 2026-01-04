@@ -343,9 +343,9 @@ export default function Home() {
     // Use sampled readings for the report
     const reportReadings = sampledReadings.length > 0 ? sampledReadings : sortedReadings;
 
-    // Group by sensor for summary stats
+    // Group by sensor for summary stats (use sampled readings)
     const stats: Record<string, { min: number; max: number; avg: number; count: number }> = {};
-    sortedReadings.forEach((r) => {
+    reportReadings.forEach((r) => {
       if (!stats[r.sensor_name]) {
         stats[r.sensor_name] = { min: r.temp_c, max: r.temp_c, avg: 0, count: 0 };
       }
@@ -1148,9 +1148,13 @@ return (
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <input
               type="number"
-              min="1"
+              min={samplingIntervalUnit === "seconds" ? "3" : "1"}
               value={samplingInterval}
-              onChange={(e) => setSamplingInterval(Math.max(1, parseInt(e.target.value) || 1))}
+              onChange={(e) => {
+                const value = parseInt(e.target.value) || 1;
+                const minValue = samplingIntervalUnit === "seconds" ? 3 : 1;
+                setSamplingInterval(Math.max(minValue, value));
+              }}
               disabled={isTracking}
               style={{
                 width: 80,
@@ -1162,7 +1166,14 @@ return (
             />
             <select
               value={samplingIntervalUnit}
-              onChange={(e) => setSamplingIntervalUnit(e.target.value as "seconds" | "minutes" | "hours")}
+              onChange={(e) => {
+                const newUnit = e.target.value as "seconds" | "minutes" | "hours";
+                setSamplingIntervalUnit(newUnit);
+                // Enforce minimum when switching to seconds
+                if (newUnit === "seconds" && samplingInterval < 3) {
+                  setSamplingInterval(3);
+                }
+              }}
               disabled={isTracking}
               style={{
                 padding: 8,
