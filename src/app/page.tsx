@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.1"; // Application version
+const APP_VERSION = "1.5.2"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
