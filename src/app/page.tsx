@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.2.0"; // Application version
+const APP_VERSION = "1.3.0"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -361,15 +361,20 @@ export default function Home() {
 
     // Separate readings by sensor (use sampled data for charts/tables)
     const ambientReadings = reportReadings.filter(r => r.sensor_name === 'ambient_room');
-    const probeReadings = reportReadings.filter(r => r.sensor_name === 'probe_target');
+    const testProbeReadings = reportReadings.filter(r => r.sensor_name === 'test_probe');
+    const controlProbeReadings = reportReadings.filter(r => r.sensor_name === 'control_probe');
 
     // Prepare chart data for ambient_room
     const ambientLabels = ambientReadings.map(r => formatChicago(r.ts_utc));
     const ambientTemps = ambientReadings.map(r => Number(r.temp_c));
 
-    // Prepare chart data for probe_target
-    const probeLabels = probeReadings.map(r => formatChicago(r.ts_utc));
-    const probeTemps = probeReadings.map(r => Number(r.temp_c));
+    // Prepare chart data for test_probe
+    const testProbeLabels = testProbeReadings.map(r => formatChicago(r.ts_utc));
+    const testProbeTemps = testProbeReadings.map(r => Number(r.temp_c));
+
+    // Prepare chart data for control_probe
+    const controlProbeLabels = controlProbeReadings.map(r => formatChicago(r.ts_utc));
+    const controlProbeTemps = controlProbeReadings.map(r => Number(r.temp_c));
 
     // Create HTML content
     const html = `<!DOCTYPE html>
@@ -572,8 +577,11 @@ export default function Home() {
       ${ambientReadings.length > 0 ? `
       <li><a href="#ambient-section">🌡️ Ambient Room Temperature</a></li>
       ` : ''}
-      ${probeReadings.length > 0 ? `
-      <li><a href="#probe-section">🎯 Probe Target Temperature</a></li>
+      ${testProbeReadings.length > 0 ? `
+      <li><a href="#test-probe-section">🎯 Test Probe Temperature</a></li>
+      ` : ''}
+      ${controlProbeReadings.length > 0 ? `
+      <li><a href="#control-probe-section">🔬 Control Probe Temperature</a></li>
       ` : ''}
     </ul>
   </div>
@@ -632,23 +640,23 @@ export default function Home() {
     </div>
     ` : ''}
 
-    <!-- Probe Target Sensor Section -->
-    ${probeReadings.length > 0 ? `
-    <div class="sensor-section" id="probe-section">
-      <h2>🎯 Probe Target Temperature</h2>
+    <!-- Test Probe Sensor Section -->
+    ${testProbeReadings.length > 0 ? `
+    <div class="sensor-section" id="test-probe-section">
+      <h2>🎯 Test Probe Temperature</h2>
 
       <div class="summary">
         <div class="summary-card">
           <h3>Statistics</h3>
-          <p><strong>Readings:</strong> ${stats['probe_target']?.count || 0}</p>
-          <p><strong>Min:</strong> ${stats['probe_target']?.min.toFixed(2) || 0} °C</p>
-          <p><strong>Max:</strong> ${stats['probe_target']?.max.toFixed(2) || 0} °C</p>
-          <p><strong>Avg:</strong> ${stats['probe_target']?.avg.toFixed(2) || 0} °C</p>
+          <p><strong>Readings:</strong> ${stats['test_probe']?.count || 0}</p>
+          <p><strong>Min:</strong> ${stats['test_probe']?.min.toFixed(2) || 0} °C</p>
+          <p><strong>Max:</strong> ${stats['test_probe']?.max.toFixed(2) || 0} °C</p>
+          <p><strong>Avg:</strong> ${stats['test_probe']?.avg.toFixed(2) || 0} °C</p>
         </div>
       </div>
 
       <div class="chart-container">
-        <canvas id="probeChart"></canvas>
+        <canvas id="testProbeChart"></canvas>
       </div>
 
       <table>
@@ -660,7 +668,47 @@ export default function Home() {
           </tr>
         </thead>
         <tbody>
-          ${probeReadings.map(reading => `
+          ${testProbeReadings.map((reading: Reading) => `
+          <tr>
+            <td>${formatChicago(reading.ts_utc)}</td>
+            <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+            <td>${reading.sensor_id}</td>
+          </tr>
+          `).join('')}
+        </tbody>
+      </table>
+    </div>
+    ` : ''}
+
+    <!-- Control Probe Sensor Section -->
+    ${controlProbeReadings.length > 0 ? `
+    <div class="sensor-section" id="control-probe-section">
+      <h2>🔬 Control Probe Temperature</h2>
+
+      <div class="summary">
+        <div class="summary-card">
+          <h3>Statistics</h3>
+          <p><strong>Readings:</strong> ${stats['control_probe']?.count || 0}</p>
+          <p><strong>Min:</strong> ${stats['control_probe']?.min.toFixed(2) || 0} °C</p>
+          <p><strong>Max:</strong> ${stats['control_probe']?.max.toFixed(2) || 0} °C</p>
+          <p><strong>Avg:</strong> ${stats['control_probe']?.avg.toFixed(2) || 0} °C</p>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="controlProbeChart"></canvas>
+      </div>
+
+      <table>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Temperature (°C)</th>
+            <th>Sensor ID</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${controlProbeReadings.map((reading: Reading) => `
           <tr>
             <td>${formatChicago(reading.ts_utc)}</td>
             <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
@@ -748,16 +796,16 @@ export default function Home() {
     });
     ` : ''}
 
-    // Probe Target Chart
-    ${probeReadings.length > 0 ? `
-    const probeCtx = document.getElementById('probeChart').getContext('2d');
-    new Chart(probeCtx, {
+    // Test Probe Chart
+    ${testProbeReadings.length > 0 ? `
+    const testProbeCtx = document.getElementById('testProbeChart').getContext('2d');
+    new Chart(testProbeCtx, {
       type: 'line',
       data: {
-        labels: ${JSON.stringify(probeLabels)},
+        labels: ${JSON.stringify(testProbeLabels)},
         datasets: [{
-          label: 'Probe Target Temperature (°C)',
-          data: ${JSON.stringify(probeTemps)},
+          label: 'Test Probe Temperature (°C)',
+          data: ${JSON.stringify(testProbeTemps)},
           borderColor: '#ff9800',
           backgroundColor: 'rgba(255, 152, 0, 0.1)',
           borderWidth: 2,
@@ -811,6 +859,76 @@ export default function Home() {
               display: true,
               text: 'Temperature (°C)',
               color: '#ff9800'
+            }
+          }
+        }
+      }
+    });
+    ` : ''}
+
+    // Control Probe Chart
+    ${controlProbeReadings.length > 0 ? `
+    const controlProbeCtx = document.getElementById('controlProbeChart').getContext('2d');
+    new Chart(controlProbeCtx, {
+      type: 'line',
+      data: {
+        labels: ${JSON.stringify(controlProbeLabels)},
+        datasets: [{
+          label: 'Control Probe Temperature (°C)',
+          data: ${JSON.stringify(controlProbeTemps)},
+          borderColor: '#9c27b0',
+          backgroundColor: 'rgba(156, 39, 176, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#9c27b0',
+          pointBorderColor: '#1f1f1f',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: true,
+            labels: {
+              color: '#e0e0e0',
+              font: { size: 14 }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#9c27b0',
+            bodyColor: '#e0e0e0',
+            borderColor: '#9c27b0',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#b0b0b0',
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: {
+              color: '#333'
+            }
+          },
+          y: {
+            ticks: {
+              color: '#b0b0b0'
+            },
+            grid: {
+              color: '#333'
+            },
+            title: {
+              display: true,
+              text: 'Temperature (°C)',
+              color: '#9c27b0'
             }
           }
         }
