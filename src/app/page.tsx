@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.3.0"; // Application version
+const APP_VERSION = "1.3.1"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -360,11 +360,11 @@ export default function Home() {
     });
 
     // Separate readings by sensor (use sampled data for charts/tables)
-    const ambientReadings = reportReadings.filter(r => r.sensor_name === 'ambient_room');
+    const ambientReadings = reportReadings.filter(r => r.sensor_name === 'ambient');
     const testProbeReadings = reportReadings.filter(r => r.sensor_name === 'test_probe');
     const controlProbeReadings = reportReadings.filter(r => r.sensor_name === 'control_probe');
 
-    // Prepare chart data for ambient_room
+    // Prepare chart data for ambient
     const ambientLabels = ambientReadings.map(r => formatChicago(r.ts_utc));
     const ambientTemps = ambientReadings.map(r => Number(r.temp_c));
 
@@ -608,10 +608,10 @@ export default function Home() {
       <div class="summary">
         <div class="summary-card">
           <h3>Statistics</h3>
-          <p><strong>Readings:</strong> ${stats['ambient_room']?.count || 0}</p>
-          <p><strong>Min:</strong> ${stats['ambient_room']?.min.toFixed(2) || 0} °C</p>
-          <p><strong>Max:</strong> ${stats['ambient_room']?.max.toFixed(2) || 0} °C</p>
-          <p><strong>Avg:</strong> ${stats['ambient_room']?.avg.toFixed(2) || 0} °C</p>
+          <p><strong>Readings:</strong> ${stats['ambient']?.count || 0}</p>
+          <p><strong>Min:</strong> ${stats['ambient']?.min.toFixed(2) || 0} °C</p>
+          <p><strong>Max:</strong> ${stats['ambient']?.max.toFixed(2) || 0} °C</p>
+          <p><strong>Avg:</strong> ${stats['ambient']?.avg.toFixed(2) || 0} °C</p>
         </div>
       </div>
 
