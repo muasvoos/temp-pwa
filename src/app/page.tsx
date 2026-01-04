@@ -394,12 +394,18 @@ export default function Home() {
   function generateSummary(stats: Record<string, { min: number; max: number; avg: number; count: number }>) {
     let summary = "Temperature Readings Summary:\n\n";
 
-    Object.entries(stats).sort(([a], [b]) => a.localeCompare(b)).forEach(([sensor, data]) => {
-      summary += `${sensor}:\n`;
-      summary += `  Total Readings: ${data.count}\n`;
-      summary += `  Min: ${data.min.toFixed(2)} °C\n`;
-      summary += `  Max: ${data.max.toFixed(2)} °C\n`;
-      summary += `  Avg: ${data.avg.toFixed(2)} °C\n\n`;
+    // Define sensor order to match HTML report
+    const sensorOrder = ['outdoor', 'ambient', 'test_probe', 'control_probe'];
+
+    sensorOrder.forEach((sensor) => {
+      if (stats[sensor]) {
+        const data = stats[sensor];
+        summary += `${sensor}:\n`;
+        summary += `  Total Readings: ${data.count}\n`;
+        summary += `  Min: ${data.min.toFixed(2)} °C\n`;
+        summary += `  Max: ${data.max.toFixed(2)} °C\n`;
+        summary += `  Avg: ${data.avg.toFixed(2)} °C\n\n`;
+      }
     });
 
     return summary;
