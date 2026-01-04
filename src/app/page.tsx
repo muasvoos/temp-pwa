@@ -33,6 +33,13 @@ function celsiusToFahrenheit(celsius: number): number {
   return (celsius * 9/5) + 32;
 }
 
+function getSensorColor(sensorName: string): string {
+  if (sensorName === 'ambient') return '#ffffff';
+  if (sensorName === 'test_probe') return '#ef5350';
+  if (sensorName === 'control_probe') return '#66bb6a';
+  return '#64b5f6'; // default color
+}
+
 export default function Home() {
   const [latestBySensor, setLatestBySensor] = useState<Record<string, Reading>>(
     {}
@@ -1619,11 +1626,11 @@ return (
               {r.sensor_name}
             </div>
 
-            <div style={{ fontSize: 42, fontWeight: 800, marginTop: 6 }}>
+            <div style={{ fontSize: 42, fontWeight: 800, marginTop: 6, color: getSensorColor(r.sensor_name) }}>
               {Number(r.temp_c).toFixed(2)} °C
             </div>
 
-            <div style={{ fontSize: 28, fontWeight: 600, marginTop: 4, opacity: 0.8 }}>
+            <div style={{ fontSize: 28, fontWeight: 600, marginTop: 4, opacity: 0.8, color: getSensorColor(r.sensor_name) }}>
               {celsiusToFahrenheit(Number(r.temp_c)).toFixed(2)} °F
             </div>
 
@@ -1682,10 +1689,10 @@ return (
                     }}
                   >
                     <div>
-                      <div style={{ fontSize: 24, fontWeight: 700 }}>
+                      <div style={{ fontSize: 24, fontWeight: 700, color: getSensorColor(sensorName) }}>
                         {Number(reading.temp_c).toFixed(2)} °C
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 600, opacity: 0.7, marginTop: 2 }}>
+                      <div style={{ fontSize: 16, fontWeight: 600, opacity: 0.7, marginTop: 2, color: getSensorColor(sensorName) }}>
                         {celsiusToFahrenheit(Number(reading.temp_c)).toFixed(2)} °F
                       </div>
                     </div>
