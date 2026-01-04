@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.5.0"; // Application version
+const APP_VERSION = "1.5.1"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -493,6 +493,43 @@ export default function Home() {
       font-size: 15px;
       color: #b0b0b0;
     }
+    /* Sensor-specific colors */
+    .ambient-color .summary-card {
+      background: rgba(255, 255, 255, 0.1);
+      border-left-color: #ffffff;
+    }
+    .ambient-color .summary-card h3 {
+      color: #ffffff;
+    }
+    .ambient-color th {
+      background: rgba(255, 255, 255, 0.2);
+      color: #ffffff;
+      border-bottom-color: #ffffff;
+    }
+    .test-probe-color .summary-card {
+      background: rgba(239, 83, 80, 0.15);
+      border-left-color: #ef5350;
+    }
+    .test-probe-color .summary-card h3 {
+      color: #ef5350;
+    }
+    .test-probe-color th {
+      background: rgba(239, 83, 80, 0.2);
+      color: #ef5350;
+      border-bottom-color: #ef5350;
+    }
+    .control-probe-color .summary-card {
+      background: rgba(102, 187, 106, 0.15);
+      border-left-color: #66bb6a;
+    }
+    .control-probe-color .summary-card h3 {
+      color: #66bb6a;
+    }
+    .control-probe-color th {
+      background: rgba(102, 187, 106, 0.2);
+      color: #66bb6a;
+      border-bottom-color: #66bb6a;
+    }
     .chart-container {
       background: #252525;
       padding: 20px;
@@ -648,7 +685,7 @@ export default function Home() {
 
     <!-- Ambient Sensor Section -->
     ${ambientReadings.length > 0 ? `
-    <div class="sensor-section" id="ambient-section">
+    <div class="sensor-section ambient-color" id="ambient-section">
       <h2>🌡️ Ambient Temperature</h2>
 
       <div class="summary">
@@ -690,7 +727,7 @@ export default function Home() {
 
     <!-- Test Probe Sensor Section -->
     ${testProbeReadings.length > 0 ? `
-    <div class="sensor-section" id="test-probe-section">
+    <div class="sensor-section test-probe-color" id="test-probe-section">
       <h2>🎯 Test Probe Temperature</h2>
 
       <div class="summary">
@@ -732,7 +769,7 @@ export default function Home() {
 
     <!-- Control Probe Sensor Section -->
     ${controlProbeReadings.length > 0 ? `
-    <div class="sensor-section" id="control-probe-section">
+    <div class="sensor-section control-probe-color" id="control-probe-section">
       <h2>🔬 Control Probe Temperature</h2>
 
       <div class="summary">
@@ -788,15 +825,15 @@ export default function Home() {
         datasets: [{
           label: 'Ambient Temperature (°C)',
           data: ${JSON.stringify(ambientTemps)},
-          borderColor: '#64b5f6',
-          backgroundColor: 'rgba(100, 181, 246, 0.1)',
+          borderColor: '#ffffff',
+          backgroundColor: 'rgba(255, 255, 255, 0.1)',
           borderWidth: 2,
           tension: 0.3,
           fill: true,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: '#64b5f6',
-          pointBorderColor: '#1e3a5f',
+          pointBackgroundColor: '#ffffff',
+          pointBorderColor: '#1f1f1f',
           pointBorderWidth: 2
         }]
       },
@@ -813,9 +850,9 @@ export default function Home() {
           },
           tooltip: {
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleColor: '#64b5f6',
+            titleColor: '#ffffff',
             bodyColor: '#e0e0e0',
-            borderColor: '#64b5f6',
+            borderColor: '#ffffff',
             borderWidth: 1
           }
         },
@@ -840,7 +877,7 @@ export default function Home() {
             title: {
               display: true,
               text: 'Temperature (°C)',
-              color: '#64b5f6'
+              color: '#ffffff'
             }
           }
         }
@@ -858,14 +895,14 @@ export default function Home() {
         datasets: [{
           label: 'Test Probe Temperature (°C)',
           data: ${JSON.stringify(testProbeTemps)},
-          borderColor: '#ff9800',
-          backgroundColor: 'rgba(255, 152, 0, 0.1)',
+          borderColor: '#ef5350',
+          backgroundColor: 'rgba(239, 83, 80, 0.1)',
           borderWidth: 2,
           tension: 0.3,
           fill: true,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: '#ff9800',
+          pointBackgroundColor: '#ef5350',
           pointBorderColor: '#1f1f1f',
           pointBorderWidth: 2
         }]
@@ -883,9 +920,9 @@ export default function Home() {
           },
           tooltip: {
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleColor: '#ff9800',
+            titleColor: '#ef5350',
             bodyColor: '#e0e0e0',
-            borderColor: '#ff9800',
+            borderColor: '#ef5350',
             borderWidth: 1
           }
         },
@@ -910,7 +947,7 @@ export default function Home() {
             title: {
               display: true,
               text: 'Temperature (°C)',
-              color: '#ff9800'
+              color: '#ef5350'
             }
           }
         }
@@ -928,14 +965,14 @@ export default function Home() {
         datasets: [{
           label: 'Control Probe Temperature (°C)',
           data: ${JSON.stringify(controlProbeTemps)},
-          borderColor: '#9c27b0',
-          backgroundColor: 'rgba(156, 39, 176, 0.1)',
+          borderColor: '#66bb6a',
+          backgroundColor: 'rgba(102, 187, 106, 0.1)',
           borderWidth: 2,
           tension: 0.3,
           fill: true,
           pointRadius: 4,
           pointHoverRadius: 6,
-          pointBackgroundColor: '#9c27b0',
+          pointBackgroundColor: '#66bb6a',
           pointBorderColor: '#1f1f1f',
           pointBorderWidth: 2
         }]
@@ -953,9 +990,9 @@ export default function Home() {
           },
           tooltip: {
             backgroundColor: 'rgba(0, 0, 0, 0.8)',
-            titleColor: '#9c27b0',
+            titleColor: '#66bb6a',
             bodyColor: '#e0e0e0',
-            borderColor: '#9c27b0',
+            borderColor: '#66bb6a',
             borderWidth: 1
           }
         },
@@ -980,7 +1017,7 @@ export default function Home() {
             title: {
               display: true,
               text: 'Temperature (°C)',
-              color: '#9c27b0'
+              color: '#66bb6a'
             }
           }
         }
