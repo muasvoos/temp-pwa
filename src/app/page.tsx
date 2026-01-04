@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.4.2"; // Application version
+const APP_VERSION = "1.4.3"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -617,7 +617,7 @@ export default function Home() {
     <h2>📋 Table of Contents</h2>
     <ul>
       ${ambientReadings.length > 0 ? `
-      <li><a href="#ambient-section">🌡️ Ambient Room Temperature</a></li>
+      <li><a href="#ambient-section">🌡️ Ambient Temperature</a></li>
       ` : ''}
       ${testProbeReadings.length > 0 ? `
       <li><a href="#test-probe-section">🎯 Test Probe Temperature</a></li>
@@ -642,10 +642,10 @@ export default function Home() {
       <p><strong>Report Version:</strong> ${APP_VERSION}</p>
     </div>
 
-    <!-- Ambient Room Sensor Section -->
+    <!-- Ambient Sensor Section -->
     ${ambientReadings.length > 0 ? `
     <div class="sensor-section" id="ambient-section">
-      <h2>🌡️ Ambient Room Temperature</h2>
+      <h2>🌡️ Ambient Temperature</h2>
 
       <div class="summary">
         <div class="summary-card">
@@ -768,7 +768,7 @@ export default function Home() {
     Chart.defaults.color = '#e0e0e0';
     Chart.defaults.borderColor = '#333';
 
-    // Ambient Room Chart
+    // Ambient Chart
     ${ambientReadings.length > 0 ? `
     const ambientCtx = document.getElementById('ambientChart').getContext('2d');
     new Chart(ambientCtx, {
@@ -776,7 +776,7 @@ export default function Home() {
       data: {
         labels: ${JSON.stringify(ambientLabels)},
         datasets: [{
-          label: 'Ambient Room Temperature (°C)',
+          label: 'Ambient Temperature (°C)',
           data: ${JSON.stringify(ambientTemps)},
           borderColor: '#64b5f6',
           backgroundColor: 'rgba(100, 181, 246, 0.1)',
