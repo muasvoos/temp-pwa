@@ -100,6 +100,7 @@ export default function Home() {
   // Outdoor weather state (ZIP 53224 - Milwaukee, WI)
   const [outdoorTemp, setOutdoorTemp] = useState<number | null>(null);
   const [outdoorLastUpdate, setOutdoorLastUpdate] = useState<string | null>(null);
+  const [outdoorReadings, setOutdoorReadings] = useState<Array<{ temp_c: number; ts_utc: string }>>([]);
 
   // Hardcoded upload interval (Pi's actual upload rate)
   const uploadIntervalInSeconds = 10;
@@ -223,6 +224,7 @@ export default function Home() {
     setIsTracking(true);
     setTrackingCompleted(false);
     setFilteredReadings([]);
+    setOutdoorReadings([]);
     setTrackingStartTime(startDateTime.toISOString());
     setTrackingEndTime(endDateTime.toISOString());
 
@@ -271,6 +273,7 @@ export default function Home() {
     setIsTracking(false);
     setTrackingCompleted(false);
     setFilteredReadings([]);
+    setOutdoorReadings([]);
     setTrackingStartTime("");
     setTrackingEndTime("");
     if (useManualTime) {
@@ -364,8 +367,23 @@ export default function Home() {
       const data = await response.json();
 
       if (data.current && data.current.temperature_2m !== undefined) {
+        const timestamp = new Date().toISOString();
         setOutdoorTemp(data.current.temperature_2m);
-        setOutdoorLastUpdate(new Date().toISOString());
+        setOutdoorLastUpdate(timestamp);
+
+        // If tracking is active, add to outdoor readings array
+        if (isTrackingRef.current && trackingStartTimeRef.current && trackingEndTimeRef.current) {
+          const readingTime = new Date(timestamp);
+          const startTime = new Date(trackingStartTimeRef.current);
+          const endTime = new Date(trackingEndTimeRef.current);
+
+          if (readingTime >= startTime && readingTime <= endTime) {
+            setOutdoorReadings(prev => [{
+              temp_c: data.current.temperature_2m,
+              ts_utc: timestamp
+            }, ...prev]);
+          }
+        }
       }
     } catch (error) {
       console.error('Failed to fetch outdoor weather:', error);
@@ -566,6 +584,51 @@ export default function Home() {
     const controlProbeTempsC = controlProbeReadings.map(r => Number(r.temp_c));
     const controlProbeTempsF = controlProbeReadings.map(r => celsiusToFahrenheit(Number(r.temp_c)));
 
+    // Process outdoor weather readings - sample them at the same interval
+    const sampledOutdoorReadings: Array<{ temp_c: number; ts_utc: string }> = [];
+    if (outdoorReadings.length > 0) {
+      const sortedOutdoor = [...outdoorReadings].sort((a, b) => new Date(a.ts_utc).getTime() - new Date(b.ts_utc).getTime());
+      const startTimeMs = new Date(trackingStartTime).getTime();
+      const endTimeMs = new Date(trackingEndTime).getTime();
+      let currentSampleTime = startTimeMs;
+
+      while (currentSampleTime <= endTimeMs) {
+        let closestReading: typeof sortedOutdoor[0] | null = null;
+        let closestDiff = Infinity;
+
+        sortedOutdoor.forEach((reading) => {
+          const readingTime = new Date(reading.ts_utc).getTime();
+          const diff = Math.abs(readingTime - currentSampleTime);
+
+          if (diff < closestDiff && diff < samplingIntervalMs) {
+            closestDiff = diff;
+            closestReading = reading;
+          }
+        });
+
+        if (closestReading && !sampledOutdoorReadings.includes(closestReading)) {
+          sampledOutdoorReadings.push(closestReading);
+        }
+
+        currentSampleTime += samplingIntervalMs;
+      }
+    }
+
+    // Add outdoor stats if we have readings
+    if (sampledOutdoorReadings.length > 0) {
+      stats['outdoor'] = {
+        min: Math.min(...sampledOutdoorReadings.map(r => r.temp_c)),
+        max: Math.max(...sampledOutdoorReadings.map(r => r.temp_c)),
+        avg: sampledOutdoorReadings.reduce((sum, r) => sum + r.temp_c, 0) / sampledOutdoorReadings.length,
+        count: sampledOutdoorReadings.length
+      };
+    }
+
+    // Prepare chart data for outdoor (both Celsius and Fahrenheit)
+    const outdoorLabels = sampledOutdoorReadings.map(r => formatChicago(r.ts_utc));
+    const outdoorTempsC = sampledOutdoorReadings.map(r => Number(r.temp_c));
+    const outdoorTempsF = sampledOutdoorReadings.map(r => celsiusToFahrenheit(Number(r.temp_c)));
+
     // Create HTML content
     const html = `<!DOCTYPE html>
 <html lang="en">
@@ -674,7 +737,23 @@ export default function Home() {
       color: #66bb6a;
       border-bottom-color: #66bb6a;
     }
+    .outdoor-color .summary-card {
+      background: rgba(100, 181, 246, 0.15);
+      border-left-color: #64b5f6;
+    }
+    .outdoor-color .summary-card h3 {
+      color: #64b5f6;
+    }
+    .outdoor-color th {
+      background: rgba(100, 181, 246, 0.2);
+      color: #64b5f6;
+      border-bottom-color: #64b5f6;
+    }
     /* Temperature cell colors */
+    .outdoor-color .temp-cell {
+      color: #64b5f6;
+      font-weight: 600;
+    }
     .ambient-color .temp-cell {
       color: #ffffff;
       font-weight: 600;
@@ -850,6 +929,9 @@ export default function Home() {
   <div class="toc">
     <h2>📋 Table of Contents</h2>
     <ul>
+      ${sampledOutdoorReadings.length > 0 ? `
+      <li><a href="#outdoor-section">🌤️ Outdoor Weather Temperature</a></li>
+      ` : ''}
       ${ambientReadings.length > 0 ? `
       <li><a href="#ambient-section">🌡️ Ambient Temperature</a></li>
       ` : ''}
@@ -900,6 +982,55 @@ export default function Home() {
         </div>
       </div>
     </div>
+
+    <!-- Outdoor Weather Section -->
+    ${sampledOutdoorReadings.length > 0 ? `
+    <div class="sensor-section outdoor-color" id="outdoor-section">
+      <h2>🌤️ Outdoor Weather Temperature (ZIP 53224)</h2>
+
+      <div class="summary">
+        <div class="summary-card">
+          <h3>Statistics</h3>
+          <p><strong>Readings:</strong> ${stats['outdoor']?.count || 0}</p>
+          <p><strong>Min:</strong> ${stats['outdoor']?.min.toFixed(2) || 0} °C (${((stats['outdoor']?.min || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Max:</strong> ${stats['outdoor']?.max.toFixed(2) || 0} °C (${((stats['outdoor']?.max || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p><strong>Avg:</strong> ${stats['outdoor']?.avg.toFixed(2) || 0} °C (${((stats['outdoor']?.avg || 0) * 9/5 + 32).toFixed(2)} °F)</p>
+          <p style="font-size: 13px; opacity: 0.75; margin-top: 10px;"><em>Source: Open-Meteo API (Milwaukee, WI)</em></p>
+        </div>
+      </div>
+
+      <div class="chart-container">
+        <canvas id="outdoorChart"></canvas>
+      </div>
+
+      <div class="collapsible-header" onclick="toggleTable(this)">
+        <h3>📊 Timestamp Data (${sampledOutdoorReadings.length} readings)</h3>
+        <span class="collapsible-arrow">▼</span>
+      </div>
+      <div class="collapsible-content">
+        <table>
+          <thead>
+            <tr>
+              <th>Timestamp</th>
+              <th>Temperature (°C)</th>
+              <th>Temperature (°F)</th>
+              <th>Source</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sampledOutdoorReadings.map(reading => `
+            <tr>
+              <td>${formatChicago(reading.ts_utc)}</td>
+              <td class="temp-cell">${Number(reading.temp_c).toFixed(2)} °C</td>
+              <td class="temp-cell">${(Number(reading.temp_c) * 9/5 + 32).toFixed(2)} °F</td>
+              <td>Open-Meteo API</td>
+            </tr>
+            `).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+    ` : ''}
 
     <!-- Ambient Sensor Section -->
     ${ambientReadings.length > 0 ? `
@@ -1052,6 +1183,7 @@ export default function Home() {
     Chart.defaults.borderColor = '#333';
 
     // Store chart instances
+    let outdoorChart = null;
     let ambientChart = null;
     let testProbeChart = null;
     let controlProbeChart = null;
@@ -1059,6 +1191,11 @@ export default function Home() {
 
     // Temperature data (Celsius and Fahrenheit)
     const chartData = {
+      outdoor: {
+        labels: ${JSON.stringify(outdoorLabels)},
+        celsius: ${JSON.stringify(outdoorTempsC)},
+        fahrenheit: ${JSON.stringify(outdoorTempsF)}
+      },
       ambient: {
         labels: ${JSON.stringify(ambientLabels)},
         celsius: ${JSON.stringify(ambientTempsC)},
@@ -1144,6 +1281,13 @@ export default function Home() {
       }
 
       // Update charts
+      if (outdoorChart) {
+        outdoorChart.data.datasets[0].data = unit === 'celsius' ? chartData.outdoor.celsius : chartData.outdoor.fahrenheit;
+        outdoorChart.data.datasets[0].label = unit === 'celsius' ? 'Outdoor Temperature (°C)' : 'Outdoor Temperature (°F)';
+        outdoorChart.options.scales.y.title.text = unit === 'celsius' ? 'Temperature (°C)' : 'Temperature (°F)';
+        outdoorChart.update();
+      }
+
       if (ambientChart) {
         ambientChart.data.datasets[0].data = unit === 'celsius' ? chartData.ambient.celsius : chartData.ambient.fahrenheit;
         ambientChart.data.datasets[0].label = unit === 'celsius' ? 'Ambient Temperature (°C)' : 'Ambient Temperature (°F)';
@@ -1165,6 +1309,76 @@ export default function Home() {
         controlProbeChart.update();
       }
     }
+
+    // Outdoor Weather Chart
+    ${sampledOutdoorReadings.length > 0 ? `
+    const outdoorCtx = document.getElementById('outdoorChart').getContext('2d');
+    outdoorChart = new Chart(outdoorCtx, {
+      type: 'line',
+      data: {
+        labels: chartData.outdoor.labels,
+        datasets: [{
+          label: 'Outdoor Temperature (°C)',
+          data: chartData.outdoor.celsius,
+          borderColor: '#64b5f6',
+          backgroundColor: 'rgba(100, 181, 246, 0.1)',
+          borderWidth: 2,
+          tension: 0.3,
+          fill: true,
+          pointRadius: 4,
+          pointHoverRadius: 6,
+          pointBackgroundColor: '#64b5f6',
+          pointBorderColor: '#1f1f1f',
+          pointBorderWidth: 2
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: true,
+        plugins: {
+          legend: {
+            display: true,
+            labels: {
+              color: '#e0e0e0',
+              font: { size: 14 }
+            }
+          },
+          tooltip: {
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            titleColor: '#ffffff',
+            bodyColor: '#e0e0e0',
+            borderColor: '#64b5f6',
+            borderWidth: 1
+          }
+        },
+        scales: {
+          x: {
+            ticks: {
+              color: '#b0b0b0',
+              maxRotation: 45,
+              minRotation: 45
+            },
+            grid: {
+              color: '#333'
+            }
+          },
+          y: {
+            ticks: {
+              color: '#b0b0b0'
+            },
+            grid: {
+              color: '#333'
+            },
+            title: {
+              display: true,
+              text: 'Temperature (°C)',
+              color: '#64b5f6'
+            }
+          }
+        }
+      }
+    });
+    ` : ''}
 
     // Ambient Chart
     ${ambientReadings.length > 0 ? `
