@@ -13,7 +13,7 @@ type Reading = {
 
 const DEVICE_ID = process.env.NEXT_PUBLIC_DEVICE_ID || "pi4";
 const TIME_ZONE = "America/Chicago";
-const APP_VERSION = "1.4.1"; // Application version
+const APP_VERSION = "1.4.2"; // Application version
 
 function formatChicago(isoUtc: string) {
   const d = new Date(isoUtc);
@@ -255,6 +255,31 @@ export default function Home() {
       const summary = generateSummary(stats);
       const timeRange = `${formatChicago(trackingStartTime)} - ${formatChicago(trackingEndTime)}`;
 
+      // Check payload size
+      const payload = {
+        email: emailAddress,
+        htmlContent,
+        summary,
+        timeRange,
+      };
+      const payloadSize = new Blob([JSON.stringify(payload)]).size;
+      const payloadSizeMB = (payloadSize / 1024 / 1024).toFixed(2);
+
+      console.log(`Email payload size: ${payloadSizeMB} MB`);
+
+      // Warn if payload is very large (>4MB can fail on mobile)
+      if (payloadSize > 4 * 1024 * 1024) {
+        const proceed = confirm(
+          `Warning: Report is very large (${payloadSizeMB} MB). This may fail on mobile networks. ` +
+          `Try reducing the date range or increasing the sampling interval.\n\n` +
+          `Continue anyway?`
+        );
+        if (!proceed) {
+          setEmailSending(false);
+          return;
+        }
+      }
+
       // Create AbortController for timeout (60 seconds for large reports)
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 60000);
@@ -264,12 +289,7 @@ export default function Home() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          email: emailAddress,
-          htmlContent,
-          summary,
-          timeRange,
-        }),
+        body: JSON.stringify(payload),
         signal: controller.signal,
       });
 
@@ -292,7 +312,7 @@ export default function Home() {
         if (error.name === 'AbortError') {
           errorMessage = 'Request timed out. The report may be too large or the server is slow. Try reducing the date range or sampling interval.';
         } else if (error.message === 'Load failed' || error.message.includes('fetch')) {
-          errorMessage = 'Network error. Please check your internet connection and try again.';
+          errorMessage = 'Network error. The report may be too large for your device or network. Try reducing the date range or increasing the sampling interval to fewer data points.';
         } else {
           errorMessage = error.message;
         }
@@ -1488,8 +1508,15 @@ return (
         )}
 
         {trackingCompleted && (
-          <div style={{ fontSize: 13, color: "#4caf50", fontWeight: 600 }}>
-            ✅ Tracking completed! {filteredReadings.length} readings collected
+          <div>
+            <div style={{ fontSize: 13, color: "#4caf50", fontWeight: 600 }}>
+              ✅ Tracking completed! {filteredReadings.length} readings collected
+            </div>
+            {filteredReadings.length > 1000 && (
+              <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4, color: "#ff9800" }}>
+                ⚠️ Large dataset - email may fail on mobile. Consider increasing sampling interval.
+              </div>
+            )}
           </div>
         )}
       </div>
